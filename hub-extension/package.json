@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "jimp": "^1.6.1",
+    "vss-web-extension-sdk": "^5.141.0"
+  }
+}

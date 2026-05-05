@@ -1,12 +1,14 @@
 {
     "manifestVersion": 1,
-    "id": "smart-release-notes-generator",
-    "name": "Smart Release Notes Generator",
-    "version": "1.0.0",
+    "id": "smart-release-notes-dev",
+    "name": "Smart Release Notes Generator (Dev)",
+    "version": "1.0.9",
     "publisher": "ReleaseManagerTools",
-    "public": true,
     "description": "Génère automatiquement des Release Notes structurées et orientées client via LLM à partir des tickets fermés d'une release Azure DevOps.",
     "categories": ["Azure Pipelines"],
+    "icons": {
+        "default": "icon.png"
+    },
     "targets": [
         {
             "id": "Microsoft.VisualStudio.Services"
@@ -16,7 +18,7 @@
         {
             "id": "release-notes-hub",
             "type": "ms.vss-web.hub",
-            "targets": ["ms.vss-web.project-hub-group"],
+            "targets": ["ms.vss-web.project-admin-hub-group"],
             "properties": {
                 "name": "Release Notes Generator",
                 "uri": "index.html"
@@ -24,12 +26,14 @@
         }
     ],
     "files": [
-        {"path": "index.html"},
-        {"path": "app.js"},
-        {"path": "style.css"},
+        {"path": "index.html", "addressable": true},
+        {"path": "app.js", "addressable": true},
+        {"path": "style.css", "addressable": true},
+        {"path": "icon.png", "addressable": true},
+        {"path": "sdk/scripts/VSS.SDK.min.js", "addressable": true},
         {
-        "path": "overview.md",
-        "assetType": "Microsoft.VisualStudio.Services.Content.Details"
-    }
+            "path": "overview.md",
+            "assetType": "Microsoft.VisualStudio.Services.Content.Details"
+        }
     ]
 }

@@ -1,0 +1,45 @@
+{
+    "id": "release-notes-task-001",
+    "name": "GenerateReleaseNotes",
+    "friendlyName": "Generate Smart Release Notes",
+    "description": "Récupère les tickets fermés de la release et génère automatiquement les Release Notes via OpenAI",
+    "category": "Utility",
+    "author": "ReleaseManagerTools",
+    "version": {
+        "Major": 1,
+        "Minor": 0,
+        "Patch": 0
+    },
+    "inputs": [
+        {
+            "name": "openAiApiKey",
+            "type": "string",
+            "label": "Clé API OpenAI",
+            "required": true,
+            "helpMarkDown": "Clé API OpenAI pour la génération des Release Notes"
+        },
+        {
+            "name": "outputLanguage",
+            "type": "pickList",
+            "label": "Langue de sortie",
+            "required": true,
+            "options": {
+                "fr": "Français",
+                "en": "Anglais"
+            },
+            "defaultValue": "fr"
+        },
+        {
+            "name": "wikiPagePath",
+            "type": "string",
+            "label": "Chemin Wiki Azure DevOps",
+            "required": true,
+            "helpMarkDown": "Chemin où sauvegarder la Release Note dans le Wiki. Ex: /Releases/v1.0.0"
+        }
+    ],
+    "execution": {
+        "Node16": {
+            "target": "index.js"
+        }
+    }
+}

@@ -1,0 +1,35 @@
+{
+    "manifestVersion": 1,
+    "id": "smart-release-notes-generator",
+    "name": "Smart Release Notes Generator",
+    "version": "1.0.0",
+    "publisher": "ReleaseManagerTools",
+    "public": true,
+    "description": "Génère automatiquement des Release Notes structurées et orientées client via LLM à partir des tickets fermés d'une release Azure DevOps.",
+    "categories": ["Azure Pipelines"],
+    "targets": [
+        {
+            "id": "Microsoft.VisualStudio.Services"
+        }
+    ],
+    "contributions": [
+        {
+            "id": "release-notes-hub",
+            "type": "ms.vss-web.hub",
+            "targets": ["ms.vss-web.project-hub-group"],
+            "properties": {
+                "name": "Release Notes Generator",
+                "uri": "index.html"
+            }
+        }
+    ],
+    "files": [
+        {"path": "index.html"},
+        {"path": "app.js"},
+        {"path": "style.css"},
+        {
+        "path": "overview.md",
+        "assetType": "Microsoft.VisualStudio.Services.Content.Details"
+    }
+    ]
+}

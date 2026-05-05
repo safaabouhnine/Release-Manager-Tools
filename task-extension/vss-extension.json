@@ -1,0 +1,28 @@
+{
+    "manifestVersion": 1,
+    "id": "smart-release-notes-task",
+    "name": "Smart Release Notes Task",
+    "version": "1.0.0",
+    "publisher": "ReleaseManagerTools",
+    "description": "Tâche pipeline qui récupère les tickets fermés et génère automatiquement les Release Notes via LLM OpenAI.",
+    "categories": ["Azure Pipelines"],
+    "targets": [
+        {
+            "id": "Microsoft.VisualStudio.Services"
+        }
+    ],
+    "contributions": [
+        {
+            "id": "release-notes-task",
+            "type": "ms.vss-task.task",
+            "targets": ["ms.vss-distributedtask.tasks"],
+            "properties": {
+                "name": "task"
+            }
+        }
+    ],
+    "files": [
+        {"path": "task.json"},
+        {"path": "index.js"}
+    ]
+}

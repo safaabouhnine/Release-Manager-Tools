@@ -1,0 +1,22 @@
+{
+    "manifestVersion": 1,
+    "scopes": [
+        "vso.release",
+        "vso.work"
+    ],
+    "contributions": [
+        {
+            "id": "release-notes-hub",
+            "type": "ms.vss-web.hub",
+            "targets": [
+                "ms.vss-web.project-hub-group"
+            ],
+            "properties": {
+                "name": "🚀 Release Notes",
+                "order": 100,
+                "uri": "index.html"
+            }
+        }
+    ],
+    "contributionTypes": []
+}

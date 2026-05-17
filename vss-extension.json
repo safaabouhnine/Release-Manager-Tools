@@ -1,0 +1,69 @@
+{
+    "manifestVersion": 1,
+    "id": "smart-release-notes",
+    "name": "Smart Release Notes Generator",
+    "version": "1.1.10",
+    "publisher": "ReleaseManagerTools",
+    "description": "Génère automatiquement des Release Notes structurées et orientées client via LLM à partir des tickets fermés d'une release Azure DevOps.",
+    "categories": ["Azure Pipelines"],
+    "icons": {
+        "default": "hub-extension/icon.png"
+    },
+    "targets": [
+        {
+            "id": "Microsoft.VisualStudio.Services"
+        }
+    ],
+    "scopes": [
+        "vso.release",
+        "vso.work"
+    ],
+    "contributions": [
+        {
+            "id": "release-notes-hub-group",
+            "type": "ms.vss-web.hub-group",
+            "description": "Groupe hub Release Notes",
+            "targets": [
+                "ms.vss-web.project-hub-groups-collection"
+            ],
+            "properties": {
+                "name": "Release Notes",
+                "order": 110
+            }
+        },
+        {
+            "id": "release-notes-hub",
+            "type": "ms.vss-web.hub",
+            "description": "Hub principal Smart Release Notes Generator",
+            "targets": [
+                ".release-notes-hub-group"
+            ],
+            "properties": {
+                "name": "Release Notes Generator",
+                "order": 99,
+                "uri": "hub-extension/index.html"
+            }
+        },
+        {
+            "id": "release-notes-task",
+            "type": "ms.vss-distributed-task.task",
+            "targets": ["ms.vss-distributed-task.tasks"],
+            "properties": {
+                "name": "task-extension"
+            }
+        }
+    ],
+    "files": [
+        {"path": "hub-extension/index.html", "addressable": true},
+        {"path": "hub-extension/app.js", "addressable": true},
+        {"path": "hub-extension/style.css", "addressable": true},
+        {"path": "hub-extension/icon.png", "addressable": true},
+        {"path": "hub-extension/sdk/scripts/VSS.SDK.min.js", "addressable": true},
+        {"path": "task-extension/node_modules", "addressable": false},
+        {"path": "task-extension", "addressable": true},
+        {
+            "path": "hub-extension/overview.md",
+            "assetType": "Microsoft.VisualStudio.Services.Content.Details"
+        }
+    ]
+}

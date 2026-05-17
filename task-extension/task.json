@@ -1,5 +1,5 @@
 {
-    "id": "release-notes-task-001",
+    "id": "a8f4b5c2-3d7e-4f91-b823-6c5d9e0a1234",
     "name": "GenerateReleaseNotes",
     "friendlyName": "Generate Smart Release Notes",
     "description": "Récupère les tickets fermés de la release et génère automatiquement les Release Notes via OpenAI",
@@ -8,8 +8,9 @@
     "version": {
         "Major": 1,
         "Minor": 0,
-        "Patch": 0
+        "Patch": 3
     },
+    "instanceNameFormat": "Generate Smart Release Notes",
     "inputs": [
         {
             "name": "openAiApiKey",
@@ -33,6 +34,7 @@
             "name": "wikiPagePath",
             "type": "string",
             "label": "Chemin Wiki Azure DevOps",
+            "defaultValue": "/Releases/$(Release.ReleaseName)",
             "required": true,
             "helpMarkDown": "Chemin où sauvegarder la Release Note dans le Wiki. Ex: /Releases/v1.0.0"
         }

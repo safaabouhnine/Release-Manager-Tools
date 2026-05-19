@@ -257,28 +257,64 @@ async function saveToWiki(orgUrl, project, pagePath, content, accessToken, relea
 *Release Note générée automatiquement par Smart Release Notes Generator*  
 *Statut : 🟡 Active — En attente de validation par le Release Manager*`;
 
-    const wikiUrl = `${orgUrl}${project}/_apis/wiki/wikis/${project}.wiki/pages?path=${encodeURIComponent(pagePath)}&api-version=7.0`;
-    console.log('Wiki URL:', wikiUrl);
+    const baseUrl = `${orgUrl}${project}/_apis/wiki/wikis/${project}.wiki/pages`;
+
+    // Étape 1 — Créer la page parent /Releases si elle n'existe pas
+    const parentPath = '/Releases';
+    const parentUrl = `${baseUrl}?path=${encodeURIComponent(parentPath)}&api-version=7.0`;
+    
+    try {
+        await axios.get(parentUrl, { headers });
+        console.log('✅ Dossier /Releases existe');
+    } catch(e) {
+        if (e.response?.status === 404) {
+            console.log('Création dossier /Releases...');
+            try {
+                await axios.put(parentUrl,
+                    { content: '# Releases\n\nRelease Notes générées automatiquement.' },
+                    { headers: headers }
+                );
+                console.log('✅ Dossier /Releases créé');
+            } catch(createErr) {
+                console.log('❌ Erreur création /Releases:', createErr.response?.status, JSON.stringify(createErr.response?.data));
+                throw createErr;
+            }
+        }
+    }
+
+    // Étape 2 — Créer ou mettre à jour la page Release Note
+    const pageUrl = `${baseUrl}?path=${encodeURIComponent(pagePath)}&api-version=7.0`;
+    console.log('Wiki page URL:', pageUrl);
 
     try {
-        const existing = await axios.get(wikiUrl, { headers });
+        // Vérifier si la page existe
+        const existing = await axios.get(pageUrl, { headers });
         const etag = existing.headers.etag;
-        await axios.put(wikiUrl,
+        console.log('Page existante — mise à jour...');
+
+        await axios.put(pageUrl,
             { content: fullContent },
             { headers: { ...headers, 'If-Match': etag } }
         );
-        console.log('Wiki page mise à jour');
+        console.log('✅ Wiki page mise à jour');
+
     } catch (e) {
         if (e.response?.status === 404) {
-            await axios.put(wikiUrl,
-                { content: fullContent },
-                { headers: { ...headers, 'If-Match': '*' } }
-            );
-            console.log('Wiki page créée');
+            console.log('Page non trouvée — création...');
+            try {
+                await axios.put(pageUrl,
+                    { content: fullContent },
+                    { headers: headers }
+                );
+                console.log('✅ Wiki page créée');
+            } catch (createErr) {
+                console.log('❌ Erreur création page:', createErr.response?.status, JSON.stringify(createErr.response?.data));
+                throw createErr;
+            }
         } else {
+            console.log('❌ Erreur Wiki:', e.response?.status, JSON.stringify(e.response?.data));
             throw e;
         }
     }
 }
-
 run();

@@ -4,78 +4,46 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Smart Release Notes Generator</title>
-    <!-- SDK chargé UNE SEULE FOIS depuis le fichier local bundlé -->
-    <script src="sdk/scripts/VSS.SDK.min.js"></script>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container">
-        
-        <!-- Header -->
         <div class="header">
-            <h1>🚀 Smart Release Notes Generator</h1>
-            <p>Générez automatiquement des Release Notes professionnelles depuis vos tickets Azure DevOps</p>
+            <h1> Smart Release Notes Generator</h1>
+            <p>Release Notes générées automatiquement via OpenAI GPT-4o-mini</p>
         </div>
 
-        <!-- Sélection Release -->
-        <div class="card">
-            <h2>1. Sélectionner une Release</h2>
-            <div class="form-group">
-                <label>Projet</label>
-                <select id="projectSelect">
-                    <option value="">Chargement...</option>
-                </select>
+        <div class="card" id="listCard">
+            <h2>📋 Release Notes</h2>
+            <div id="notesList">
+                <p style="color:#888;">Chargement...</p>
             </div>
-            <div class="form-group">
-                <label>Release</label>
-                <select id="releaseSelect" disabled>
-                    <option value="">Sélectionnez d'abord un projet</option>
-                </select>
-            </div>
-            <button id="loadTicketsBtn" class="btn-primary" disabled>
-                Charger les tickets
-            </button>
         </div>
 
-        <!-- Tickets récupérés -->
-        <div class="card" id="ticketsCard" style="display:none">
-            <h2>2. Tickets de la Release</h2>
-            <div id="ticketsList"></div>
-            <button id="generateBtn" class="btn-primary">
-                ✨ Générer les Release Notes
-            </button>
-        </div>
-
-        <!-- Release Notes générées -->
         <div class="card" id="releaseNotesCard" style="display:none">
-            <h2>3. Release Notes Générées</h2>
-            
+            <div style="margin-bottom:16px;">
+                <button onclick="backToList()" class="btn-secondary">← Retour</button>
+            </div>
+            <h2>Release Note</h2>
             <div class="status-bar">
                 <span id="statusBadge" class="badge badge-active">🟡 Active</span>
                 <span id="releaseName"></span>
             </div>
-
-            <div id="releaseNotesContent" class="release-notes-preview">
-            </div>
-
+            <div id="releaseNotesContent" class="release-notes-preview"></div>
             <div class="actions">
-                <button id="markDoneBtn" class="btn-success">
-                    ✅ Marquer comme Done
-                </button>
-                <button id="exportBtn" class="btn-secondary" disabled>
-                    📄 Envoyer au client
-                </button>
+                <button id="markDoneBtn" class="btn-success" disabled>✅ Marquer comme Done</button>
+                <button id="exportBtn" class="btn-secondary" disabled>📄 Envoyer au client</button>
             </div>
         </div>
 
-        <!-- Loading -->
         <div id="loadingOverlay" class="loading-overlay" style="display:none">
             <div class="spinner"></div>
-            <p>Génération en cours...</p>
+            <p>Chargement...</p>
         </div>
-
     </div>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <script src="app.js"></script>
+    <script src="dist/bundle.js"></script>
 </body>
 </html>
+
+

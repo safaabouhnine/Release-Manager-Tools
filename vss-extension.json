@@ -2,7 +2,7 @@
     "manifestVersion": 1,
     "id": "smart-release-notes",
     "name": "Smart Release Notes Generator",
-    "version": "1.1.15",
+    "version": "1.3.7",
     "publisher": "ReleaseManagerTools",
     "description": "Génère automatiquement des Release Notes structurées et orientées client via LLM à partir des tickets fermés d'une release Azure DevOps.",
     "categories": ["Azure Pipelines"],
@@ -16,7 +16,8 @@
     ],
     "scopes": [
         "vso.release",
-        "vso.work"
+        "vso.work",
+        "vso.wiki"
     ],
     "contributions": [
         {
@@ -55,15 +56,14 @@
     ],
     "files": [
         {"path": "hub-extension/index.html", "addressable": true},
-        {"path": "hub-extension/app.js", "addressable": true},
+        {"path": "hub-extension/dist/bundle.js", "addressable": true},
+        { "path": "hub-extension/src/app.js", "addressable": true },
         {"path": "hub-extension/style.css", "addressable": true},
         {"path": "hub-extension/icon.png", "addressable": true},
-        {"path": "hub-extension/sdk/scripts/VSS.SDK.min.js", "addressable": true},
-        {"path": "task-extension/node_modules", "addressable": false},
-        {"path": "task-extension", "addressable": true},
         {
             "path": "hub-extension/overview.md",
             "assetType": "Microsoft.VisualStudio.Services.Content.Details"
-        }
+        },
+        {"path": "task-extension", "addressable": true}
     ]
 }

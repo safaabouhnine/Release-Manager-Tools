@@ -56,13 +56,17 @@ async function run() {
             throw err;
         }
 
-        // 6. Sauvegarde Wiki
-        console.log('Sauvegarde Wiki en cours...');
+        // 6. Sauvegarde Extension Data
+        console.log('Sauvegarde Extension Data en cours...');
         try {
-            await saveToWiki(orgUrl, project, wikiPagePath, releaseNotes, accessToken, releaseName);
-            console.log('✅ Wiki sauvegarde succès');
+            await saveToExtensionData(
+                orgUrl, project, releaseId,
+                releaseName, releaseDate, environment,
+                workItems, releaseNotes, accessToken
+            );
+            console.log('✅ Extension Data sauvegarde succès');
         } catch(err) {
-            console.log('❌ Erreur Wiki:', err.response?.status, JSON.stringify(err.response?.data));
+            console.log('❌ Erreur Extension Data:', err.response?.status, JSON.stringify(err.response?.data));
             throw err;
         }
 
@@ -244,77 +248,47 @@ ${tickets}`;
     return response.data.choices[0].message.content;
 }
 
-// Sauvegarde dans le Wiki Azure DevOps
-async function saveToWiki(orgUrl, project, pagePath, content, accessToken, releaseName) {
+async function saveToExtensionData(orgUrl, project, releaseId, releaseName, releaseDate, environment, workItems, content, accessToken) {
     const headers = {
         'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json'
     };
 
-    const fullContent = `${content}
+    const publisherId = 'ReleaseManagerTools';
+    const extensionId = 'smart-release-notes';
+    const collectionName = 'release-notes';
+    const documentId = `releaseNote_${releaseId}`;
 
----
-*Release Note générée automatiquement par Smart Release Notes Generator*  
-*Statut : 🟡 Active — En attente de validation par le Release Manager*`;
+    const data = {
+        __etag: -1,
+        id: documentId,
+        releaseName: releaseName,
+        releaseId: releaseId,
+        project: project,
+        releaseDate: releaseDate,
+        environment: environment,
+        dateGeneration: new Date().toISOString(),
+        statut: 'Active',
+        contenuMarkdown: content,
+        workItems: workItems.map(wi => ({
+            id: wi.id,
+            title: wi.title,
+            type: wi.type,
+            state: wi.state
+        }))
+    };
 
-    const baseUrl = `${orgUrl}${project}/_apis/wiki/wikis/${project}.wiki/pages`;
+    const extmgmtUrl = orgUrl.replace('dev.azure.com', 'extmgmt.dev.azure.com');
+    const url = `${extmgmtUrl}_apis/ExtensionManagement/InstalledExtensions/${publisherId}/${extensionId}/Data/Scopes/Default/Current/Collections/${collectionName}/Documents/${documentId}?api-version=7.1-preview.1`;
+    console.log('Extension Data URL:', url);
 
-    // Étape 1 — Créer la page parent /Releases si elle n'existe pas
-    const parentPath = '/Releases';
-    const parentUrl = `${baseUrl}?path=${encodeURIComponent(parentPath)}&api-version=7.0`;
-    
     try {
-        await axios.get(parentUrl, { headers });
-        console.log('✅ Dossier /Releases existe');
+        await axios.put(url, data, { headers });
+        console.log('✅ Extension Data sauvegardé');
     } catch(e) {
-        if (e.response?.status === 404) {
-            console.log('Création dossier /Releases...');
-            try {
-                await axios.put(parentUrl,
-                    { content: '# Releases\n\nRelease Notes générées automatiquement.' },
-                    { headers: headers }
-                );
-                console.log('✅ Dossier /Releases créé');
-            } catch(createErr) {
-                console.log('❌ Erreur création /Releases:', createErr.response?.status, JSON.stringify(createErr.response?.data));
-                throw createErr;
-            }
-        }
-    }
-
-    // Étape 2 — Créer ou mettre à jour la page Release Note
-    const pageUrl = `${baseUrl}?path=${encodeURIComponent(pagePath)}&api-version=7.0`;
-    console.log('Wiki page URL:', pageUrl);
-
-    try {
-        // Vérifier si la page existe
-        const existing = await axios.get(pageUrl, { headers });
-        const etag = existing.headers.etag;
-        console.log('Page existante — mise à jour...');
-
-        await axios.put(pageUrl,
-            { content: fullContent },
-            { headers: { ...headers, 'If-Match': etag } }
-        );
-        console.log('✅ Wiki page mise à jour');
-
-    } catch (e) {
-        if (e.response?.status === 404) {
-            console.log('Page non trouvée — création...');
-            try {
-                await axios.put(pageUrl,
-                    { content: fullContent },
-                    { headers: headers }
-                );
-                console.log('✅ Wiki page créée');
-            } catch (createErr) {
-                console.log('❌ Erreur création page:', createErr.response?.status, JSON.stringify(createErr.response?.data));
-                throw createErr;
-            }
-        } else {
-            console.log('❌ Erreur Wiki:', e.response?.status, JSON.stringify(e.response?.data));
-            throw e;
-        }
+        console.log('❌ Erreur Extension Data:', e.response?.status, JSON.stringify(e.response?.data));
+        throw e;
     }
 }
+
 run();

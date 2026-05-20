@@ -1,6 +1,5 @@
 import * as SDK from 'azure-devops-extension-sdk';
-import { getClient } from 'azure-devops-extension-api';
-import { WikiRestClient } from 'azure-devops-extension-api/Wiki';
+import { CommonServiceIds } from 'azure-devops-extension-api';
 
 SDK.init({ loaded: false });
 
@@ -18,27 +17,17 @@ SDK.ready().then(async () => {
     async function loadReleaseNotes() {
         showLoading(true);
         try {
-            const context = SDK.getWebContext();
-            const projectName = context.project.name;
-            const wikiId = `${projectName}.wiki`;
-            const wikiClient = getClient(WikiRestClient);
-
-            // getPagesBatch pour lister les sous-pages de /Releases
-            const batchResult = await wikiClient.getPagesBatch(
-                { top: 100 },
-                projectName,
-                wikiId
+            const accessToken = await SDK.getAccessToken();
+            const extDataService = await SDK.getService(CommonServiceIds.ExtensionDataService);
+            const dataManager = await extDataService.getExtensionDataManager(
+                SDK.getExtensionContext().id,
+                accessToken
             );
 
-            // Filtrer les pages sous /Releases/
-            const releasePages = (batchResult || []).filter(p =>
-                p.path && p.path.startsWith('/Releases/') &&
-                p.path.split('/').length === 3
-            );
-
-            console.log('Release pages trouvées:', releasePages.length);
+            const docs = await dataManager.getDocuments('release-notes');
+            console.log('Release Notes trouvées:', docs.length);
             showLoading(false);
-            displayNotesList(releasePages, projectName, wikiId);
+            displayNotesList(docs);
         } catch(err) {
             console.error('Erreur chargement:', err);
             showLoading(false);
@@ -47,71 +36,89 @@ SDK.ready().then(async () => {
         }
     }
 
-    function displayNotesList(pages, projectName, wikiId) {
+    function displayNotesList(notes) {
         const container = document.getElementById('notesList');
         container.innerHTML = '';
 
-        if (!pages || pages.length === 0) {
+        if (!notes || notes.length === 0) {
             container.innerHTML = '<p style="color:#888;padding:20px;">Aucune Release Note générée pour le moment.</p>';
             return;
         }
 
-        pages.sort((a, b) => b.path.localeCompare(a.path));
+        notes.sort((a, b) => new Date(b.dateGeneration) - new Date(a.dateGeneration));
 
-        pages.forEach(page => {
-            const releaseName = page.path.replace('/Releases/', '');
+        notes.forEach(note => {
             const div = document.createElement('div');
             div.className = 'note-card';
             div.innerHTML =
                 '<div class="note-header">' +
-                    '<span class="note-title">' + releaseName + '</span>' +
-                    '<span class="badge badge-active">🟡 Active</span>' +
+                    '<span class="note-title">' + note.releaseName + '</span>' +
+                    '<span class="note-project">' + note.project + '</span>' +
+                    '<span class="badge ' + (note.statut === 'Active' ? 'badge-active' : 'badge-done') + '">' +
+                        (note.statut === 'Active' ? '🟡 Active' : '✅ Done') +
+                    '</span>' +
+                    '<span class="note-date">' + new Date(note.dateGeneration).toLocaleDateString('fr-FR') + '</span>' +
                 '</div>' +
-                '<button class="btn-primary view-btn" data-path="' + page.path + '" data-project="' + projectName + '" data-wiki="' + wikiId + '">Voir & Valider</button>';
+                '<div class="note-tickets">Tickets : ' + (note.workItems ? note.workItems.length : 0) + '</div>' +
+                '<button class="btn-primary view-btn" data-id="' + note.id + '">Voir & Valider</button>';
             container.appendChild(div);
         });
 
         document.querySelectorAll('.view-btn').forEach(btn => {
-            btn.addEventListener('click', () =>
-                viewNote(btn.dataset.path, btn.dataset.project, btn.dataset.wiki)
-            );
+            btn.addEventListener('click', () => viewNote(btn.dataset.id, notes));
         });
     }
 
-    async function viewNote(path, projectName, wikiId) {
-        showLoading(true);
-        try {
-            const wikiClient = getClient(WikiRestClient);
-
-            // getPageText retourne le contenu Markdown directement
-            const content = await wikiClient.getPageText(
-                projectName,
-                wikiId,
-                path,
-                undefined,
-                undefined,
-                true
-            );
-
-            showLoading(false);
-            displayNoteDetail(path, content);
-        } catch(err) {
-            console.error('Erreur lecture page:', err);
-            showLoading(false);
-        }
+    async function viewNote(noteId, notes) {
+        const note = notes.find(n => n.id === noteId);
+        if (!note) return;
+        displayNoteDetail(note);
     }
 
-    function displayNoteDetail(path, content) {
+    function displayNoteDetail(note) {
         document.getElementById('listCard').style.display = 'none';
         releaseNotesCard.style.display = 'block';
 
-        const releaseName = path.replace('/Releases/', '');
-        document.getElementById('releaseName').textContent = releaseName;
-        document.getElementById('releaseNotesContent').innerHTML =
-            window.marked ? window.marked.parse(content) : content;
+        document.getElementById('releaseName').textContent = note.releaseName;
 
-        markDoneBtn.disabled = false;
-        exportBtn.disabled = true;
+        const badge = document.getElementById('statusBadge');
+        badge.textContent = note.statut === 'Active' ? '🟡 Active' : '✅ Done';
+        badge.className = 'badge ' + (note.statut === 'Active' ? 'badge-active' : 'badge-done');
+
+        document.getElementById('releaseNotesContent').innerHTML =
+            window.marked ? window.marked.parse(note.contenuMarkdown || '') : note.contenuMarkdown;
+
+        if (note.statut === 'Active') {
+            markDoneBtn.disabled = false;
+            markDoneBtn.onclick = () => markAsDone(note);
+            exportBtn.disabled = true;
+        } else {
+            markDoneBtn.disabled = true;
+            exportBtn.disabled = false;
+        }
+    }
+
+    async function markAsDone(note) {
+        try {
+            const accessToken = await SDK.getAccessToken();
+            const extDataService = await SDK.getService(CommonServiceIds.ExtensionDataService);
+            const dataManager = await extDataService.getExtensionDataManager(
+                SDK.getExtensionContext().id,
+                accessToken
+            );
+
+            note.statut = 'Done';
+            await dataManager.updateDocument('release-notes', note);
+
+            const badge = document.getElementById('statusBadge');
+            badge.textContent = '✅ Done';
+            badge.className = 'badge badge-done';
+            markDoneBtn.disabled = true;
+            exportBtn.disabled = false;
+            console.log('✅ Statut mis à jour : Done');
+        } catch(err) {
+            console.error('Erreur mise à jour:', err);
+        }
     }
 
     window.backToList = function() {

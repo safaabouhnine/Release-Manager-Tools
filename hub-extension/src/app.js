@@ -24,7 +24,9 @@ SDK.ready().then(async () => {
                 accessToken
             );
 
-            const docs = await dataManager.getDocuments('release-notes');
+            const context = SDK.getWebContext();
+            const projectName = context.project.name;
+            const docs = await dataManager.getDocuments(`release-notes-${projectName}`);
             console.log('Release Notes trouvées:', docs.length);
             showLoading(false);
             displayNotesList(docs);
@@ -108,7 +110,9 @@ SDK.ready().then(async () => {
             );
 
             note.statut = 'Done';
-            await dataManager.updateDocument('release-notes', note);
+            const context = SDK.getWebContext();
+            const projectName = context.project.name;
+            await dataManager.updateDocument(`release-notes-${projectName}`, note);
 
             const badge = document.getElementById('statusBadge');
             badge.textContent = '✅ Done';

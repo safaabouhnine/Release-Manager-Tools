@@ -7,43 +7,133 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1> Smart Release Notes Generator</h1>
-            <p>Release Notes générées automatiquement via OpenAI GPT-4o-mini</p>
-        </div>
+    <div id="app">
 
-        <div class="card" id="listCard">
-            <h2>📋 Release Notes</h2>
-            <div id="notesList">
-                <p style="color:#888;">Chargement...</p>
-            </div>
-        </div>
-
-        <div class="card" id="releaseNotesCard" style="display:none">
-            <div style="margin-bottom:16px;">
-                <button onclick="backToList()" class="btn-secondary">← Retour</button>
-            </div>
-            <h2>Release Note</h2>
-            <div class="status-bar">
-                <span id="statusBadge" class="badge badge-active">🟡 Active</span>
-                <span id="releaseName"></span>
-            </div>
-            <div id="releaseNotesContent" class="release-notes-preview"></div>
-            <div class="actions">
-                <button id="markDoneBtn" class="btn-success" disabled>✅ Marquer comme Done</button>
-                <button id="exportBtn" class="btn-secondary" disabled>📄 Envoyer au client</button>
-            </div>
-        </div>
-
-        <div id="loadingOverlay" class="loading-overlay" style="display:none">
+        <div id="loadingOverlay" class="loading-overlay">
             <div class="spinner"></div>
-            <p>Chargement...</p>
+            <span>Chargement des release notes...</span>
         </div>
+
+        <header class="rn-header">
+            <div class="rn-header-left">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                <span>Release Notes</span>
+            </div>
+            <span class="rn-header-project" id="projectName">CAmReportAI</span>
+        </header>
+
+        <!-- ════════ VUE 1 : ACCUEIL ════════ -->
+        <section id="viewHome" class="view">
+            <h1 class="view-title">Release Notes</h1>
+            <div class="home-cards">
+                <div class="home-card home-card--active" id="cardActive" role="button" tabindex="0">
+                    <div class="home-card-top">
+                        <span class="home-card-label">En attente de validation</span>
+                        <span class="count-pill count-pill--active" id="homeActiveCount">0</span>
+                    </div>
+                    <div class="home-card-title">
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                        Releases actives
+                    </div>
+                    <button class="btn btn-outline btn-block">Accéder <span class="arrow">→</span></button>
+                </div>
+                <div class="home-card home-card--done" id="cardDone" role="button" tabindex="0">
+                    <div class="home-card-top">
+                        <span class="home-card-label">Prêtes à envoyer</span>
+                        <span class="count-pill count-pill--done" id="homeDoneCount">0</span>
+                    </div>
+                    <div class="home-card-title">
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                        Releases publiées
+                    </div>
+                    <button class="btn btn-outline btn-block">Accéder <span class="arrow">→</span></button>
+                </div>
+            </div>
+            <div class="info-bar" id="lastGenInfo">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                <span id="lastGenText">Aucune génération récente</span>
+            </div>
+        </section>
+
+        <!-- ════════ VUE 2 : LISTE ACTIVE ════════ -->
+        <section id="viewActive" class="view hidden">
+            <button class="back-link" data-nav="home">← Retour</button>
+            <h1 class="view-title">Releases en cours <span class="count-pill count-pill--active" id="activeListCount">0</span></h1>
+            <div class="list-card" id="activeList"></div>
+        </section>
+
+        <!-- ════════ VUE 3 : LISTE DONE ════════ -->
+        <section id="viewDone" class="view hidden">
+            <button class="back-link" data-nav="home">← Retour</button>
+            <h1 class="view-title">Releases publiées <span class="count-pill count-pill--done" id="doneListCount">0</span></h1>
+            <div id="sendSuccess" class="ok-bar hidden">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                <span id="sendSuccessText"></span>
+            </div>
+            <div class="list-card" id="doneList"></div>
+        </section>
+
+        <!-- ════════ VUE 4 : DÉTAIL ════════ -->
+        <section id="viewDetail" class="view hidden">
+            <button class="back-link" data-nav="back">← Retour</button>
+
+            <div id="doneSuccess" class="ok-bar hidden">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                <span id="doneSuccessText"></span>
+            </div>
+
+            <div id="regenBar" class="info-bar info-bar--regen hidden">
+                <svg class="spin" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                <span>Régénération en cours via GPT-4o-mini...</span>
+            </div>
+
+            <div class="detail-card">
+                <div class="detail-head">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                    <span id="detailTitle">Release</span>
+                    <span class="badge" id="detailStatus">Active</span>
+                </div>
+
+                <!-- Sections générées dynamiquement (avec crayon par section) -->
+                <div id="detailSections"></div>
+
+                <!-- Barre d'actions -->
+                <div class="action-bar">
+                    <button class="btn btn-outline" id="regenBtn">
+                        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                        Régénérer via IA
+                    </button>
+                    <button class="btn btn-green" id="markDoneBtn">
+                        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                        <span class="back-link" data-nav="doneList">
+                            Marquer comme Done
+                        </span>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Modale de confirmation d'envoi (avec champ email) -->
+        <div id="confirmModal" class="modal-overlay hidden">
+            <div class="modal">
+                <h3>Envoyer au client</h3>
+                <p>La release note <strong id="confirmName"></strong> sera transmise au client.</p>
+                <label class="modal-label" for="clientEmail">Adresse email du client</label>
+                <input type="email" id="clientEmail" class="modal-input" placeholder="client@entreprise.com">
+                <div id="emailError" class="email-error hidden">Veuillez saisir une adresse email valide.</div>
+                <div class="modal-actions">
+                    <button class="btn btn-outline" id="confirmCancel">Annuler</button>
+                    <button class="btn btn-blue" id="confirmSend">
+                        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                        Confirmer l'envoi
+                    </button>
+                </div>
+            </div>
+        </div>
+
     </div>
+
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="dist/bundle.js"></script>
 </body>
 </html>
-
-

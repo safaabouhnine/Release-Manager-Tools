@@ -8,7 +8,7 @@
     "version": {
         "Major": 1,
         "Minor": 4,
-        "Patch": 0
+        "Patch": 6
     },
     "instanceNameFormat": "Generate Smart Release Notes",
     "inputs": [

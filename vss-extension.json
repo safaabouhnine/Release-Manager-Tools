@@ -2,7 +2,7 @@
     "manifestVersion": 1,
     "id": "smart-release-notes",
     "name": "Smart Release Notes Generator",
-    "version": "1.4.0",
+    "version": "1.4.6",
     "publisher": "ReleaseManagerTools",
     "description": "Génère automatiquement des Release Notes structurées et orientées client via LLM à partir des tickets fermés d'une release Azure DevOps.",
     "categories": ["Azure Pipelines"],

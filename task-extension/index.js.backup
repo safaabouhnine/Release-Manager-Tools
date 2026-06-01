@@ -1,23 +1,21 @@
 const tl = require('azure-pipelines-task-lib/task');
 const axios = require('axios');
-const {
-    getRAGContext,
-    generateAndAttachEmbedding,
-    extractRAGMetadata
-} = require('./ragService');
 
 async function run() {
     try {
+        // 1. Récupération des inputs
         const openAiApiKey = tl.getInput('openAiApiKey', true);
 
-        const orgUrl      = process.env.SYSTEM_TEAMFOUNDATIONCOLLECTIONURI;
-        const project     = process.env.SYSTEM_TEAMPROJECT;
-        const releaseId   = process.env.RELEASE_RELEASEID;
+        // 2. Variables Azure DevOps automatiques
+        const orgUrl = process.env.SYSTEM_TEAMFOUNDATIONCOLLECTIONURI;
+        const project = process.env.SYSTEM_TEAMPROJECT;
+        const releaseId = process.env.RELEASE_RELEASEID;
         const accessToken = process.env.SYSTEM_ACCESSTOKEN;
         const releaseName = process.env.RELEASE_RELEASENAME || 'Release';
         const releaseDate = new Date().toLocaleDateString('fr-FR');
         const environment = process.env.RELEASE_ENVIRONMENTNAME || 'Production';
 
+        // Logs de diagnostic
         console.log('=== DIAGNOSTIC ===');
         console.log('orgUrl:', orgUrl);
         console.log('project:', project);
@@ -29,41 +27,22 @@ async function run() {
 
         console.log(`Génération des Release Notes pour : ${releaseName}`);
 
-        // 1. Récupération des work items (avec areaPath — nouveau champ)
+        // 3. Récupération des work items
         const workItems = await getWorkItems(orgUrl, vsrmUrl, project, releaseId, accessToken);
         console.log(`${workItems.length} tickets récupérés`);
 
-        // 2. Formatage des tickets pour le prompt
+        // 4. Formatage des tickets
         const formattedTickets = formatWorkItems(workItems);
-        console.log('Tickets filtrés:', workItems.filter(i =>
+        console.log('Tickets filtrés - nombre:', workItems.filter(i => 
             ['Closed', 'Resolved'].includes(i.state)).length
         );
 
-        // 3. Extraction des métadonnées RAG depuis les work items
-        //    (Epics, Features, Area Paths pour le BusinessScore)
-        const currentMeta = extractRAGMetadata(workItems);
-
-        // 4. Pipeline Two-Stage RAG
-        const ragExamples = await getRAGContext(
-            orgUrl,
-            project,
-            accessToken,
-            openAiApiKey,
-            formattedTickets,
-            currentMeta       // ← Métadonnées pour le BusinessScore
-        );
-
-        if (ragExamples && ragExamples.length > 0) {
-            console.log(`✅ RAG actif : ${ragExamples.length} exemple(s) injecté(s)`);
-        } else {
-            console.log('ℹ️  RAG : génération sans contexte');
-        }
-
-        // 5. Génération via OpenAI (avec contexte RAG)
+        // 5. Génération via OpenAI
         console.log('Appel OpenAI en cours...');
         let releaseNotes;
         try {
             const outputLanguage = tl.getInput('outputLanguage', false) || 'fr';
+
             releaseNotes = await generateReleaseNotes(
                 formattedTickets,
                 releaseName,
@@ -71,31 +50,29 @@ async function run() {
                 project,
                 environment,
                 openAiApiKey,
-                outputLanguage,
-                ragExamples
+                outputLanguage
             );
-            console.log('✅ OpenAI succès - longueur:', releaseNotes.length);
-        } catch (err) {
+            console.log('✅ OpenAI succès - longueur réponse:', releaseNotes.length);
+        } catch(err) {
             console.log('❌ Erreur OpenAI:', err.response?.status, JSON.stringify(err.response?.data));
             throw err;
         }
 
-        // 6. Sauvegarde avec embedding + métadonnées RAG
-        console.log('Sauvegarde Extension Data...');
+        // 6. Sauvegarde Extension Data
+        console.log('Sauvegarde Extension Data en cours...');
         try {
             await saveToExtensionData(
                 orgUrl, project, releaseId,
                 releaseName, releaseDate, environment,
-                workItems, releaseNotes, accessToken,
-                openAiApiKey, formattedTickets, currentMeta
+                workItems, releaseNotes, accessToken
             );
-            console.log('✅ Sauvegarde succès');
-        } catch (err) {
+            console.log('✅ Extension Data sauvegarde succès');
+        } catch(err) {
             console.log('❌ Erreur Extension Data:', err.response?.status, JSON.stringify(err.response?.data));
             throw err;
         }
 
-        console.log('✅ Release Notes générées et sauvegardées');
+        console.log('✅ Release Notes générées et sauvegardées avec succès');
         tl.setResult(tl.TaskResult.Succeeded, 'Release Notes générées avec succès');
 
     } catch (err) {
@@ -104,8 +81,7 @@ async function run() {
     }
 }
 
-// ── Récupération des work items ───────────────────────────────────────────
-// MODIFIÉ : ajout du champ System.AreaPath pour le BusinessScore RAG
+// Récupération des work items
 async function getWorkItems(orgUrl, vsrmUrl, project, releaseId, accessToken) {
     const headers = {
         'Authorization': `Bearer ${accessToken}`,
@@ -117,13 +93,13 @@ async function getWorkItems(orgUrl, vsrmUrl, project, releaseId, accessToken) {
 
     const response = await axios.get(url, { headers });
     const workItemRefs = response.data.value || [];
-    console.log('Work item refs:', workItemRefs.length);
+    console.log('Work item refs trouvés:', workItemRefs.length);
 
     const workItemDetails = await Promise.all(
         workItemRefs.map(async (ref) => {
             const detailUrl = `${orgUrl}${project}/_apis/wit/workitems/${ref.id}?$expand=relations&api-version=7.0`;
-            const detail    = await axios.get(detailUrl, { headers });
-            const fields    = detail.data.fields;
+            const detail = await axios.get(detailUrl, { headers });
+            const fields = detail.data.fields;
 
             const relations = (detail.data.relations || [])
                 .filter(r => r.rel === 'System.LinkTypes.Hierarchy-Forward' ||
@@ -135,13 +111,12 @@ async function getWorkItems(orgUrl, vsrmUrl, project, releaseId, accessToken) {
                 .filter(Boolean);
 
             return {
-                id         : ref.id,
-                title      : fields['System.Title'],
-                type       : fields['System.WorkItemType'],
-                state      : fields['System.State'],
+                id: ref.id,
+                title: fields['System.Title'],
+                type: fields['System.WorkItemType'],
+                state: fields['System.State'],
                 description: fields['System.Description'] || '',
-                areaPath   : fields['System.AreaPath'] || '',   // ← NOUVEAU
-                relations
+                relations: relations
             };
         })
     );
@@ -149,29 +124,37 @@ async function getWorkItems(orgUrl, vsrmUrl, project, releaseId, accessToken) {
     return workItemDetails;
 }
 
-// ── Formatage des tickets (inchangé) ─────────────────────────────────────
+// Formatage des tickets pour le prompt
 function formatWorkItems(workItems) {
     const filtered = workItems.filter(item =>
         ['Closed'].includes(item.state) &&
         !item.title.toLowerCase().match(/test|debug|temp/)
     );
 
-    if (filtered.length === 0) return 'No closed tickets found for this release.';
+    if (filtered.length === 0) {
+        return 'No closed tickets found for this release.';
+    }
 
+    // Récupérer tous les IDs de la release courante
     const currentReleaseIds = new Set(filtered.map(item => String(item.id)));
 
     return filtered.map(item => {
         const cleanDescription = item.description
-            ? item.description.replace(/<[^>]*>/g, '').replace(/!\[.*?\]\(.*?\)/g, '').trim()
+            ? item.description
+                .replace(/<[^>]*>/g, '')
+                .replace(/!\[.*?\]\(.*?\)/g, '')
+                .trim()
             : 'no description available';
 
+        // Analyser les relations
         let relationInfo = 'none';
         if (item.relations && item.relations.length > 0) {
-            relationInfo = item.relations.map(r => {
+            const relationDetails = item.relations.map(r => {
                 const relatedId = String(r.id);
-                const isIn = currentReleaseIds.has(relatedId);
-                return `#${relatedId} (${isIn ? 'IN_CURRENT_RELEASE' : 'FROM_PREVIOUS_RELEASE'})`;
+                const isInCurrentRelease = currentReleaseIds.has(relatedId);
+                return `#${relatedId} (${isInCurrentRelease ? 'IN_CURRENT_RELEASE' : 'FROM_PREVIOUS_RELEASE'})`;
             }).join(', ');
+            relationInfo = relationDetails;
         }
 
         return `[TICKET #${item.id}]
@@ -179,37 +162,16 @@ Type        : ${item.type}
 Title       : ${item.title}
 Description : ${cleanDescription}
 State       : ${item.state}
-Area Path   : ${item.areaPath}
 Related to  : ${relationInfo}`;
     }).join('\n\n');
 }
 
-// ── Génération via OpenAI (avec bloc RAG) ─────────────────────────────────
-async function generateReleaseNotes(
-    tickets, releaseName, releaseDate, project,
-    environment, apiKey, outputLanguage, ragExamples = null
-) {
+// Génération via OpenAI
+async function generateReleaseNotes(tickets, releaseName, releaseDate, project, environment, apiKey, outputLanguage) {
+
     const langInstruction = outputLanguage === 'fr'
         ? 'You MUST respond ONLY in French. No exceptions.'
         : 'You MUST respond ONLY in English. No exceptions.';
-
-    // Construction du bloc RAG (few-shot examples)
-    let ragBlock = '';
-    if (ragExamples && ragExamples.length > 0) {
-        ragBlock = `
-
-[STYLE REFERENCE — VALIDATED EXAMPLES]
-The following release notes were validated by the release manager.
-Use them as style, tone, and structure references ONLY.
-Do NOT copy content — adapt the format to the new tickets.
-
-${ragExamples.map((ex, i) => `--- Reference ${i + 1}: ${ex.releaseName} (score: ${ex.finalScore.toFixed(3)}) ---
-${ex.content.slice(0, 1000)}
---- End of reference ${i + 1} ---`).join('\n\n')}
-
-Generate the new release note following the same communication style.`;
-    }
-
     const systemPrompt = `You are an expert in client-oriented technical communication.
 You work for a software development team using Azure DevOps.
 Your role is to transform lists of technical tickets into professional,
@@ -224,24 +186,42 @@ ${langInstruction}
 [Format]
 - Generate your response ONLY in Markdown format.
 - Generate NOTHING other than the requested release note.
-- CRITICAL: If a ticket category has NO tickets, DO NOT display the section header at all.
+- CRITICAL: If a ticket category has NO tickets, DO NOT display the section header at all. 
+  Do NOT write "(Aucun bug corrigé)" or any similar placeholder. Simply omit the entire section.
 - For each ticket, generate a bold client-oriented title followed by
   1 to 3 bullet points describing the concrete impact for the user or business.
 
 [Content]
 - Reformulate each ticket in business language — never use technical jargon.
 - Never copy the raw ticket title — always reformulate.
-- The global summary must describe business value. 2-3 sentences max.
+- If a ticket title is too vague, indicate: "Internal improvement #ID".
+- The global summary must describe business value, not technical details. 2-3 sentences max.
 - Include only tickets with state Closed.
+- Ignore tickets that appear to be internal test entries.
 
 [Linked Tickets Rules]
-- Each ticket has a "Related to" field:
-  * IN_CURRENT_RELEASE = linked ticket is in THIS release
-  * FROM_PREVIOUS_RELEASE = linked ticket was in a PREVIOUS release
-- If both tickets are IN_CURRENT_RELEASE, present them together (A then B).
-- If FROM_PREVIOUS_RELEASE, present the current ticket standalone.
+- Each ticket has a "Related to" field showing linked tickets with their origin:
+  * IN_CURRENT_RELEASE = the linked ticket exists in THIS release
+  * FROM_PREVIOUS_RELEASE = the linked ticket was delivered in a PREVIOUS release
+
+- RULE 1: If ticket A is related to ticket B and BOTH are IN_CURRENT_RELEASE:
+  Present ticket A first (explain what it does and why it was created).
+  Then present ticket B in relation to ticket A — explain that ticket B was created
+  to handle, fix, complete, or extend ticket A based on its type:
+    * If ticket B is a Bug → it was a bug discovered during the work on ticket A
+    * If ticket B is a Task → it was a technical task required to complete ticket A
+    * If ticket B is a Feature or User Story → it is a complement or extension of ticket A
+  Always use client-oriented language describing the business impact.
+
+- RULE 2: If ticket B is IN_CURRENT_RELEASE and its related ticket A is FROM_PREVIOUS_RELEASE:
+  Present ONLY ticket B as a standalone ticket.
+  Do NOT mention the previous release ticket.
+
+- CRITICAL: If a category has no tickets, DO NOT display the section header at all.
 
 [Template]
+Use EXACTLY this structure:
+
 # ${project} | Release Notes ${releaseName}
 
 ## ${project}
@@ -255,25 +235,26 @@ ${langInstruction}
 ---
 
 ## Résumé de la version
-[2-3 sentences]
+[2-3 sentences describing the business value]
 
 ## Nouvelles Fonctionnalités
-**[title] (#ID)**
-- [bullet]
+**[Client-oriented feature title] (#ID)**
+- [bullet point]
 
 ## Bugs Corrigés
-**[title] (#ID)**
-- [bullet]
+**[Client-oriented bug title] (#ID)**
+- [bullet point]
 
 ## Améliorations
-**[title] (#ID)**
-- [bullet]
-${ragBlock}`;
+**[Client-oriented improvement title] (#ID)**
+- [bullet point]`;
 
-    const userPrompt = `Generate a professional release note for "${releaseName}" 
-delivered on ${releaseDate} for "${project}". Environment: ${environment}.
+    const userPrompt = `Generate a professional release note for the release "${releaseName}" 
+delivered on ${releaseDate} for the project "${project}".
+Environment: ${environment}.
 
-Tickets:
+Here are the tickets included in this release:
+
 ${tickets}`;
 
     const response = await axios.post(
@@ -282,9 +263,9 @@ ${tickets}`;
             model: 'gpt-4o-mini',
             messages: [
                 { role: 'system', content: systemPrompt },
-                { role: 'user',   content: userPrompt   }
+                { role: 'user', content: userPrompt }
             ],
-            max_tokens : 2000,
+            max_tokens: 2000,
             temperature: 0.3
         },
         {
@@ -298,54 +279,47 @@ ${tickets}`;
     return response.data.choices[0].message.content;
 }
 
-// ── Sauvegarde Extension Data ─────────────────────────────────────────────
-// MODIFIÉ : stocke embedding + ragMetadata (epics, features, areaPaths)
-async function saveToExtensionData(
-    orgUrl, project, releaseId, releaseName, releaseDate,
-    environment, workItems, content, accessToken,
-    openAiApiKey, formattedTickets, currentMeta
-) {
+async function saveToExtensionData(orgUrl, project, releaseId, releaseName, releaseDate, environment, workItems, content, accessToken) {
     const headers = {
         'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json'
     };
 
-    const publisherId    = 'ReleaseManagerTools';
-    const extensionId    = 'smart-release-notes';
+    const publisherId = 'ReleaseManagerTools';
+    const extensionId = 'smart-release-notes';
     const collectionName = `release-notes-${project}`;
-    const documentId     = `releaseNote_${releaseId}`;
+    const documentId = `releaseNote_${releaseId}`;
 
-    let data = {
-        __etag          : -1,
-        id              : documentId,
-        releaseName,
-        releaseId,
-        project,
-        releaseDate,
-        environment,
-        dateGeneration  : new Date().toISOString(),
-        statut          : 'Active',
-        contenuMarkdown : content,
-        embedding       : [],          // rempli par generateAndAttachEmbedding
-        ragMetadata     : currentMeta, // ← NOUVEAU : epics, features, areaPaths
-        workItems       : workItems.map(wi => ({
-            id         : wi.id,
-            title      : wi.title,
-            type       : wi.type,
-            state      : wi.state,
-            description: wi.description, // ← NOUVEAU : pour DescriptionCoverage
-            areaPath   : wi.areaPath      // ← NOUVEAU : pour AreaPathScore
+    const data = {
+        __etag: -1,
+        id: documentId,
+        releaseName: releaseName,
+        releaseId: releaseId,
+        project: project,
+        releaseDate: releaseDate,
+        environment: environment,
+        dateGeneration: new Date().toISOString(),
+        statut: 'Active',
+        contenuMarkdown: content,
+        workItems: workItems.map(wi => ({
+            id: wi.id,
+            title: wi.title,
+            type: wi.type,
+            state: wi.state
         }))
     };
 
-    // Génération et attachement de l'embedding
-    data = await generateAndAttachEmbedding(data, formattedTickets, openAiApiKey);
-
     const extmgmtUrl = orgUrl.replace('dev.azure.com', 'extmgmt.dev.azure.com');
     const url = `${extmgmtUrl}_apis/ExtensionManagement/InstalledExtensions/${publisherId}/${extensionId}/Data/Scopes/Default/Current/Collections/${collectionName}/Documents/${documentId}?api-version=7.1-preview.1`;
+    console.log('Extension Data URL:', url);
 
-    await axios.put(url, data, { headers });
-    console.log('✅ Document sauvegardé avec embedding + ragMetadata');
+    try {
+        await axios.put(url, data, { headers });
+        console.log('✅ Extension Data sauvegardé');
+    } catch(e) {
+        console.log('❌ Erreur Extension Data:', e.response?.status, JSON.stringify(e.response?.data));
+        throw e;
+    }
 }
 
 run();

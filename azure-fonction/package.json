@@ -1,0 +1,17 @@
+{
+  "name": "release-notes-app",
+  "version": "1.0.0",
+  "description": "Azure Function — generation PDF + envoi email des release notes",
+  "main": "src/functions/*.js",
+  "scripts": {
+    "start": "func start"
+  },
+  "dependencies": {
+    "@azure/functions": "^4.5.0",
+    "html-to-pdfmake": "^2.5.0",
+    "jsdom": "^24.0.0",
+    "marked": "^9.1.6",
+    "nodemailer": "^8.0.10",
+    "pdfmake": "^0.2.10"
+  }
+}

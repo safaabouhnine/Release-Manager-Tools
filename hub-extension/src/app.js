@@ -1,14 +1,3 @@
-/**
- * app.js — Smart Release Notes Generator (Hub Extension)
- *
- * Édition par section (crayon ✏️ sur Résumé, Fonctionnalités, Bugs, Améliorations)
- * Feedback implicite : éditer → editCount++, régénérer → regenerationCount++,
- *                      Marquer Done → feedbackScore
- *
- * Correctif __etag : updateDocument renvoie un nouveau jeton de version ;
- * on l'applique localement pour éviter les conflits sur les updates suivants.
- */
-
 import * as SDK from 'azure-devops-extension-sdk';
 import { CommonServiceIds } from 'azure-devops-extension-api';
 
@@ -40,14 +29,28 @@ SDK.ready().then(async () => {
 
     // ── Sauvegarde avec gestion du jeton de version (__etag) ─────
     async function persist(note) {
-        const updated = await dataManager.updateDocument(`release-notes-${projectName}`, note);
-        // Appliquer le nouveau jeton localement pour les updates suivants
-        if (updated && updated.__etag !== undefined) {
-            note.__etag = updated.__etag;
-        }
+    const collection = `release-notes-${projectName}`;
+    try {
+        const updated = await dataManager.updateDocument(collection, note);
+        if (updated && updated.__etag !== undefined) note.__etag = updated.__etag;
         return updated;
-    }
+    } catch (err) {
+        // Conflit de version (etag périmé) → resynchroniser et réessayer une fois
+        const isConflict =
+            err.status === 409 || err.status === 412 ||
+            /etag|conflict|sequence|version/i.test(err.message || '');
 
+        if (isConflict) {
+            console.warn('⚠️ Conflit etag — resynchronisation et nouvelle tentative...');
+            const fresh = await dataManager.getDocument(collection, note.id);
+            note.__etag = fresh.__etag;                  // etag frais du serveur
+            const updated = await dataManager.updateDocument(collection, note);
+            if (updated && updated.__etag !== undefined) note.__etag = updated.__etag;
+            return updated;
+        }
+        throw err;   // autre erreur → on la remonte
+    }
+}
     // ─── Démarrage protégé ───────────────────────────────────────
     try {
         const accessToken    = await SDK.getAccessToken();
@@ -131,14 +134,19 @@ SDK.ready().then(async () => {
         const c = countByType(note);
         const statusClass = note.statut === 'Active' ? 'badge--active' : 'badge--done';
         const row = document.createElement('div');
-        row.className = 'release-row';
+        const rowClass = note.statut === 'Active'
+            ? 'release-row release-row--active'
+            : note.sentToClient
+                ? 'release-row release-row--done-sent'
+                : 'release-row release-row--done';
+        row.className = rowClass;
         row.innerHTML = `
             <div class="release-info">
                 <div class="release-name-line">
                     <span class="release-name">${note.releaseName}</span>
                     <span class="badge ${statusClass}">${note.statut}</span>
                 </div>
-                <div class="release-date">${formatDate(note.dateGeneration)} · ${note.project || projectName}</div>
+                <div class="release-date">${formatDate(note.dateGeneration)}</div>
                 <div class="release-badges">
                     <span class="tag tag--bug">${c.bugs} bugs</span>
                     <span class="tag tag--feat">${c.features} features</span>
@@ -284,7 +292,8 @@ SDK.ready().then(async () => {
                     saveSection(idx, val);
                 });
             } else {
-                // Mode lecture avec crayon
+                // Mode lecture avec crayon (hidden on hover)
+                sec.classList.add('detail-section-readable');
                 sec.innerHTML = `
                     <div class="section-header">
                         <span class="section-title">${section.title}</span>
@@ -304,17 +313,23 @@ SDK.ready().then(async () => {
 
     // SAVE section : feedback négatif modéré (édition)
     async function saveSection(idx, newBody) {
-        parsed.sections[idx].body = newBody.trim();
-        currentNote.contenuMarkdown = reassemble(parsed.header, parsed.sections);
-        currentNote.editCount = (currentNote.editCount || 0) + 1;
-        try {
-            await persist(currentNote);
-            console.log(`📝 Feedback édition section "${parsed.sections[idx].title}" — total: ${currentNote.editCount}`);
-        } catch (err) {
-            console.error('Erreur sauvegarde section:', err);
-        }
-        editingIdx = null;
-        renderSections();
+    const sectionTitle = parsed.sections[idx].title;
+    parsed.sections[idx].body = newBody.trim();
+    currentNote.contenuMarkdown = reassemble(parsed.header, parsed.sections);
+    currentNote.editCount = (currentNote.editCount || 0) + 1;
+
+    // Option B : tracking par section (alimente le dashboard analytics)
+    currentNote.sectionEdits = currentNote.sectionEdits || {};
+    currentNote.sectionEdits[sectionTitle] = (currentNote.sectionEdits[sectionTitle] || 0) + 1;
+
+    try {
+        await persist(currentNote);
+        console.log(`📝 Feedback édition "${sectionTitle}" — section: ${currentNote.sectionEdits[sectionTitle]}× | total: ${currentNote.editCount}`);
+    } catch (err) {
+        console.error('Erreur sauvegarde section:', err);
+    }
+    editingIdx = null;
+    renderSections();
     }
 
     // REGENERATE : feedback négatif fort
@@ -326,41 +341,59 @@ SDK.ready().then(async () => {
         } catch (err) {
             console.error('Erreur tracking régénération:', err);
         }
+        // Update button text with regeneration count
+        const count = currentNote.regenerationCount || 0;
+        $('regenBtn').innerHTML = `
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+            Régénérer via IA (${count})`;
         $('regenBar').classList.remove('hidden');
         // NOTE : brancher ici la régénération réelle via pipeline/API
         setTimeout(() => $('regenBar').classList.add('hidden'), 3000);
     }
 
-    // MARK DONE : calcul feedbackScore (avec correctif __etag via persist)
     async function markDone() {
         const edits  = currentNote.editCount || 0;
         const regens = currentNote.regenerationCount || 0;
         currentNote.feedbackScore = 1 / (1 + edits * 0.3 + regens * 0.6);
         currentNote.statut        = 'Done';
-        currentNote.doneCount      = (currentNote.doneCount || 0) + 1;
+        currentNote.doneCount     = (currentNote.doneCount || 0) + 1;
         currentNote.feedbackDate  = new Date().toISOString();
+
+        const btn = $('markDoneBtn');
+        const originalLabel = btn ? btn.innerHTML : '';
+        if (btn) { btn.disabled = true; btn.innerHTML = 'Validation…'; }
 
         try {
             await persist(currentNote);
             console.log(`✅ Done — FeedbackScore: ${currentNote.feedbackScore.toFixed(3)} (${edits} édits, ${regens} régén)`);
         } catch (err) {
             console.error('Erreur Marquer Done:', err);
-            // Rollback local en cas d'échec
-            currentNote.statut = 'Active';
+            currentNote.statut = 'Active';                 // rollback
+            if (btn) { btn.disabled = false; btn.innerHTML = originalLabel; }
             return;
         }
 
+        // Statut → Done
         const sb = $('detailStatus');
-        sb.textContent = 'Done';
-        sb.className = 'badge badge--done';
-        $('markDoneBtn').disabled = true;
-        $('regenBtn').disabled    = true;
+        if (sb) { sb.textContent = 'Done'; sb.className = 'badge badge--done'; }
 
-        $('doneSuccessText').textContent =
-            `${currentNote.releaseName} marquée comme Done — prête à envoyer au client.`;
-        $('doneSuccess').classList.remove('hidden');
-        renderSections();  // retire les crayons (note devient non-éditable)
+        // Le bouton devient un état "validée" lisible
+        if (btn) btn.innerHTML = '✓ Validée';
+        if ($('regenBtn')) $('regenBtn').disabled = true;
+
+        // Confirmation CLAIRE et PERSISTANTE (ne disparaît plus)
+        if ($('doneSuccessText')) {
+            $('doneSuccessText').textContent =
+                `${currentNote.releaseName} a été validée et placée dans « Publiées ». ` +
+                `Vous pouvez maintenant l'envoyer au client depuis la liste « Publiées ».`;
+        }
+        if ($('doneSuccess')) $('doneSuccess').classList.remove('hidden');
+
+        renderSections();
         renderCounts();
+
+        // ⬇️ PLUS de setTimeout : l'utilisateur lit la confirmation et revient
+        //     à la liste quand il veut via « ← Retour ». Pas de fermeture brutale.
     }
 
     // ═══════════ ENVOI CLIENT (saisie email manuelle) ════════════
@@ -376,21 +409,60 @@ SDK.ready().then(async () => {
         $('confirmModal').classList.add('hidden');
         noteToSend = null;
     }
-    function confirmSend() {
-        const email = $('clientEmail').value.trim();
-        const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-        if (!valid) {
-            $('emailError').classList.remove('hidden');
-            return;
-        }
-        const name = noteToSend.releaseName;
-        closeConfirm();
-        // NOTE : brancher ici l'envoi email réel (phase 2) vers `email`
-        $('sendSuccessText').textContent = `${name} envoyée à ${email} avec succès.`;
-        $('sendSuccess').classList.remove('hidden');
-        setTimeout(() => $('sendSuccess').classList.add('hidden'), 4000);
+   console.log("Entrée confirmSend");
+    //a remplacer la cle fonction 
+   const AZURE_FUNCTION_URL =  'https://release-notes-app-ggdkgqacdwcyave4.francecentral-01.azurewebsites.net/api/sendReleaseNote';
+   async function confirmSend() {
+    const email = $('clientEmail').value.trim();
+    const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    if (!valid) {
+        $('emailError').classList.remove('hidden');
+        return;
     }
+ 
+    const sendBtn = $('confirmSend');
+    const original = sendBtn.innerHTML;
+    sendBtn.disabled = true;
+    sendBtn.innerHTML = 'Envoi en cours...';
+    console.log("AZURE_FUNCTION_URL =", AZURE_FUNCTION_URL);
+    console.log("noteToSend =", noteToSend);
+    console.log("projectName =", projectName); 
+    try {
 
+        console.log("Début envoi");
+        const response = await fetch(AZURE_FUNCTION_URL, {
+            method : 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body   : JSON.stringify({
+                releaseName : noteToSend.releaseName,
+                project     : noteToSend.project || projectName,
+                companyName : projectName,   
+                markdown    : noteToSend.contenuMarkdown,
+                clientEmail : email
+            })
+        });
+ 
+        const result = await response.json();
+ 
+        if (result.success) {
+            closeConfirm();
+            $('sendSuccessText').textContent = `${noteToSend.releaseName} envoyée à ${email} avec succès.`;
+            $('sendSuccess').classList.remove('hidden');
+            setTimeout(() => $('sendSuccess').classList.add('hidden'), 4000);
+        } else {
+            $('emailError').textContent = 'Erreur lors de l\'envoi : ' + (result.error || 'inconnue');
+            $('emailError').classList.remove('hidden');
+        }
+ 
+    } catch (err) {
+        console.error('Erreur appel Azure Function:', err);
+        $('emailError').textContent = 'Impossible de contacter le service d\'envoi.';
+        $('emailError').classList.remove('hidden');
+    } finally {
+        sendBtn.disabled = false;
+        sendBtn.innerHTML = original;
+    }
+}
     // ═══════════ NAVIGATION ══════════════════════════════════════
     function showView(name) {
         Object.values(views).forEach(v => v && v.classList.add('hidden'));
@@ -418,5 +490,165 @@ SDK.ready().then(async () => {
         $('confirmCancel').addEventListener('click', closeConfirm);
         $('confirmSend').addEventListener('click', confirmSend);
     }
+    
+    // ═══════════════════════════════════════════════════════════════
+    // // DASHBOARD ANALYTIQUE — Smart Release Notes Generator
+    // // À ajouter dans app.js. Exploite les données déjà stockées.
+    // // ═══════════════════════════════════════════════════════════════
 
+    // // Charge toutes les notes puis rend le dashboard.
+    // async function loadDashboard() {
+    //     const container = $('dashboardContent');
+    //     if (container) container.innerHTML = '<div class="dash-empty">Chargement des analytics…</div>';
+    //     try {
+    //         // Adapte si besoin au nom exact de ta méthode de récupération de tous les docs
+    //         const notes = await dataManager.getDocuments(`release-notes-${projectName}`);
+    //         renderDashboard(Array.isArray(notes) ? notes : []);
+    //     } catch (err) {
+    //         console.error('Erreur dashboard:', err);
+    //         if (container) container.innerHTML = '<div class="dash-empty">Impossible de charger les données.</div>';
+    //     }
+    // }
+
+    // // Agrège les métriques à partir des notes.
+    // function computeDashboard(notes) {
+    //     const safe      = Array.isArray(notes) ? notes : [];
+    //     const total     = safe.length;
+    //     const active    = safe.filter(n => n.statut === 'Active').length;
+    //     const done      = safe.filter(n => n.statut === 'Done').length;
+    //     const doneNotes = safe.filter(n => n.statut === 'Done');
+
+    //     const mean = (arr, f) => {
+    //         const vals = arr.map(f).filter(v => typeof v === 'number' && !isNaN(v));
+    //         return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+    //     };
+
+    //     const avgFeedback = mean(doneNotes, n => n.feedbackScore);
+    //     const avgEdits    = mean(doneNotes, n => n.editCount);
+    //     const avgRegens   = mean(doneNotes, n => n.regenerationCount);
+
+    //     // Distribution de la qualité du 1er jet de l'IA (feedbackScore)
+    //     const quality = { high: 0, mid: 0, low: 0 };
+    //     doneNotes.forEach(n => {
+    //         const s = n.feedbackScore;
+    //         if (typeof s !== 'number') return;
+    //         if (s >= 0.8)      quality.high++;
+    //         else if (s >= 0.5) quality.mid++;
+    //         else               quality.low++;
+    //     });
+
+    //     // Sections les plus réécrites (agrégation de sectionEdits)
+    //     const sectionTotals = {};
+    //     safe.forEach(n => {
+    //         const se = n.sectionEdits || {};
+    //         Object.keys(se).forEach(k => { sectionTotals[k] = (sectionTotals[k] || 0) + (se[k] || 0); });
+    //     });
+
+    //     return { total, active, done, doneNotes, avgFeedback, avgEdits, avgRegens, quality, sectionTotals };
+    // }
+
+    // // Rend le dashboard dans #dashboardContent.
+    // function renderDashboard(notes) {
+    //     const m = computeDashboard(notes);
+    //     const container = $('dashboardContent');
+    //     if (!container) return;
+
+    //     // ── KPI cards ──
+    //     const kpis = `
+    //         <div class="dash-kpis">
+    //             <div class="dash-kpi">
+    //                 <div class="dash-kpi-value">${m.total}</div>
+    //                 <div class="dash-kpi-label">Release Notes</div>
+    //             </div>
+    //             <div class="dash-kpi dash-kpi--active">
+    //                 <div class="dash-kpi-value">${m.active}</div>
+    //                 <div class="dash-kpi-label">En cours</div>
+    //             </div>
+    //             <div class="dash-kpi dash-kpi--done">
+    //                 <div class="dash-kpi-value">${m.done}</div>
+    //                 <div class="dash-kpi-label">Publiées</div>
+    //             </div>
+    //             <div class="dash-kpi dash-kpi--score">
+    //                 <div class="dash-kpi-value">${m.avgFeedback ? m.avgFeedback.toFixed(2) : '—'}</div>
+    //                 <div class="dash-kpi-label">Score feedback moyen</div>
+    //                 <div class="dash-kpi-sub">qualité du 1er jet de l'IA</div>
+    //             </div>
+    //         </div>`;
+
+    //     // ── Effort de correction ──
+    //     const effort = `
+    //         <div class="dash-panel">
+    //             <h3 class="dash-panel-title">Effort de correction avant validation</h3>
+    //             <div class="dash-stat-row">
+    //                 <div class="dash-stat">
+    //                     <div class="dash-stat-value">${m.avgRegens.toFixed(2)}</div>
+    //                     <div class="dash-stat-label">Régénérations moyennes</div>
+    //                 </div>
+    //                 <div class="dash-stat">
+    //                     <div class="dash-stat-value">${m.avgEdits.toFixed(2)}</div>
+    //                     <div class="dash-stat-label">Éditions moyennes</div>
+    //                 </div>
+    //             </div>
+    //             <p class="dash-note">Plus ces valeurs sont basses, plus l'IA produit un contenu validable du premier coup.</p>
+    //         </div>`;
+
+    //     // ── Distribution qualité (barres) ──
+    //     const totQ = m.quality.high + m.quality.mid + m.quality.low || 1;
+    //     const quality = `
+    //         <div class="dash-panel">
+    //             <h3 class="dash-panel-title">Qualité du 1er jet (notes validées)</h3>
+    //             ${dashBar('Excellent (≥ 0.80)', m.quality.high, totQ, '#107c10')}
+    //             ${dashBar('Moyen (0.50–0.79)', m.quality.mid, totQ, '#0078d4')}
+    //             ${dashBar('À améliorer (< 0.50)', m.quality.low, totQ, '#a4262c')}
+    //         </div>`;
+
+    //     // ── Sections les plus réécrites ──
+    //     const sectionEntries = Object.entries(m.sectionTotals).sort((a, b) => b[1] - a[1]);
+    //     const maxSec = Math.max(1, ...sectionEntries.map(e => e[1]));
+    //     const sections = `
+    //         <div class="dash-panel">
+    //             <h3 class="dash-panel-title">Sections les plus réécrites</h3>
+    //             ${sectionEntries.length
+    //                 ? sectionEntries.map(([name, c]) => dashBar(name, c, maxSec, '#1a4d8f')).join('')
+    //                 : '<p class="dash-note">Aucune édition de section enregistrée pour le moment.</p>'}
+    //             <p class="dash-note">La section la plus réécrite signale la partie du prompt à améliorer en priorité.</p>
+    //         </div>`;
+
+    //     // ── Détail par release ──
+    //     const rows = m.doneNotes
+    //         .slice()
+    //         .sort((a, b) => new Date(a.dateGeneration || 0) - new Date(b.dateGeneration || 0))
+    //         .map(n => `
+    //             <tr>
+    //                 <td>${n.releaseName || '—'}</td>
+    //                 <td>${n.releaseDate || '—'}</td>
+    //                 <td>${n.editCount || 0}</td>
+    //                 <td>${n.regenerationCount || 0}</td>
+    //                 <td>${typeof n.feedbackScore === 'number' ? n.feedbackScore.toFixed(2) : '—'}</td>
+    //             </tr>`).join('');
+    //     const table = `
+    //         <div class="dash-panel">
+    //             <h3 class="dash-panel-title">Détail par release validée</h3>
+    //             <table class="dash-table">
+    //                 <thead><tr><th>Release</th><th>Date</th><th>Éditions</th><th>Régén.</th><th>Feedback</th></tr></thead>
+    //                 <tbody>${rows || '<tr><td colspan="5">Aucune release validée.</td></tr>'}</tbody>
+    //             </table>
+    //             <p class="dash-note">Une tendance décroissante des corrections au fil des releases valide l'efficacité de la boucle de feedback.</p>
+    //         </div>`;
+
+    //     container.innerHTML = kpis + effort + `<div class="dash-grid">${quality}${sections}</div>` + table;
+    // }
+
+    // // Petit helper : une barre horizontale
+    // function dashBar(label, value, max, color) {
+    //     const pct = max ? Math.round((value / max) * 100) : 0;
+    //     return `
+    //         <div class="dash-bar-row">
+    //             <div class="dash-bar-label">${label}</div>
+    //             <div class="dash-bar-track">
+    //                 <div class="dash-bar-fill" style="width:${pct}%; background:${color};"></div>
+    //             </div>
+    //             <div class="dash-bar-value">${value}</div>
+    //         </div>`;
+    // }
 });

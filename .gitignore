@@ -2,3 +2,7 @@ node_modules/
 *.vsix
 .env
 *.key
+local.settings.json
+dist/
+bin/
+obj/

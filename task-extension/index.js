@@ -40,7 +40,6 @@ async function run() {
         );
 
         // 3. Extraction des métadonnées RAG depuis les work items
-        //    (Epics, Features, Area Paths pour le BusinessScore)
         const currentMeta = extractRAGMetadata(workItems);
 
         // 4. Pipeline Two-Stage RAG
@@ -50,7 +49,7 @@ async function run() {
             accessToken,
             openAiApiKey,
             formattedTickets,
-            currentMeta       // ← Métadonnées pour le BusinessScore
+            currentMeta
         );
 
         if (ragExamples && ragExamples.length > 0) {
@@ -105,7 +104,6 @@ async function run() {
 }
 
 // ── Récupération des work items ───────────────────────────────────────────
-// MODIFIÉ : ajout du champ System.AreaPath pour le BusinessScore RAG
 async function getWorkItems(orgUrl, vsrmUrl, project, releaseId, accessToken) {
     const headers = {
         'Authorization': `Bearer ${accessToken}`,
@@ -140,7 +138,7 @@ async function getWorkItems(orgUrl, vsrmUrl, project, releaseId, accessToken) {
                 type       : fields['System.WorkItemType'],
                 state      : fields['System.State'],
                 description: fields['System.Description'] || '',
-                areaPath   : fields['System.AreaPath'] || '',   // ← NOUVEAU
+                areaPath   : fields['System.AreaPath'] || '',
                 relations
             };
         })
@@ -184,7 +182,23 @@ Related to  : ${relationInfo}`;
     }).join('\n\n');
 }
 
-// ── Génération via OpenAI (avec bloc RAG) ─────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// NOUVEAU : le CODE construit le header (titre + tableau de métadonnées).
+// Toujours bien formé, aucune répétition. GPT ne génère QUE le corps.
+// ═══════════════════════════════════════════════════════════════════════════
+function buildReleaseNoteHeader(releaseName, releaseDate, project, environment) {
+    return [
+        `# Release Notes — ${releaseName}`,
+        '',
+        '| Projet | Version | Date de release | Environnement |',
+        '|---|---|---|---|',
+        `| ${project} | ${releaseName} | ${releaseDate} | ${environment} |`,
+        ''
+    ].join('\n');
+}
+ 
+
+// ── Génération via OpenAI (CORRIGÉ : corps uniquement + RAG) ──────────────
 async function generateReleaseNotes(
     tickets, releaseName, releaseDate, project,
     environment, apiKey, outputLanguage, ragExamples = null
@@ -193,7 +207,7 @@ async function generateReleaseNotes(
         ? 'You MUST respond ONLY in French. No exceptions.'
         : 'You MUST respond ONLY in English. No exceptions.';
 
-    // Construction du bloc RAG (few-shot examples)
+    // Bloc RAG (few-shot examples)
     let ragBlock = '';
     if (ragExamples && ragExamples.length > 0) {
         ragBlock = `
@@ -207,7 +221,7 @@ ${ragExamples.map((ex, i) => `--- Reference ${i + 1}: ${ex.releaseName} (score: 
 ${ex.content.slice(0, 1000)}
 --- End of reference ${i + 1} ---`).join('\n\n')}
 
-Generate the new release note following the same communication style.`;
+Generate the new release note body following the same communication style.`;
     }
 
     const systemPrompt = `You are an expert in client-oriented technical communication.
@@ -222,11 +236,12 @@ STRICT RULES:
 ${langInstruction}
 
 [Format]
-- Generate your response ONLY in Markdown format.
-- Generate NOTHING other than the requested release note.
-- CRITICAL: If a ticket category has NO tickets, DO NOT display the section header at all.
-- For each ticket, generate a bold client-oriented title followed by
-  1 to 3 bullet points describing the concrete impact for the user or business.
+- Generate ONLY the BODY of the release note in Markdown.
+- DO NOT generate a main title (#) nor a metadata table: they are added automatically by the system.
+- Start DIRECTLY with "## Résumé de la version".
+- CRITICAL: If a ticket category has NO tickets, DO NOT display that section header at all.
+- For each ticket, use a sub-heading of the form "### Clear client-oriented title (#ID)"
+  followed by 1 to 3 bullet points describing the concrete impact for the user or business.
 
 [Content]
 - Reformulate each ticket in business language — never use technical jargon.
@@ -241,37 +256,26 @@ ${langInstruction}
 - If both tickets are IN_CURRENT_RELEASE, present them together (A then B).
 - If FROM_PREVIOUS_RELEASE, present the current ticket standalone.
 
-[Template]
-# ${project} | Release Notes ${releaseName}
-
-## ${project}
-### Release Notes — ${releaseName}
-
-| **Version**         | **${releaseName}** |
-| **Date de release** | ${releaseDate}     |
-| **Environnement**   | ${environment}     |
-| **Application**     | ${project}         |
-
----
-
+[Body template — SECTIONS ONLY, no title, no table]
 ## Résumé de la version
 [2-3 sentences]
 
 ## Nouvelles Fonctionnalités
-**[title] (#ID)**
+### [title] (#ID)
 - [bullet]
 
 ## Bugs Corrigés
-**[title] (#ID)**
+### [title] (#ID)
 - [bullet]
 
 ## Améliorations
-**[title] (#ID)**
+### [title] (#ID)
 - [bullet]
 ${ragBlock}`;
 
-    const userPrompt = `Generate a professional release note for "${releaseName}" 
+    const userPrompt = `Generate the BODY of a professional release note for "${releaseName}"
 delivered on ${releaseDate} for "${project}". Environment: ${environment}.
+Start directly with "## Résumé de la version". Do not add a title or a table.
 
 Tickets:
 ${tickets}`;
@@ -295,11 +299,21 @@ ${tickets}`;
         }
     );
 
-    return response.data.choices[0].message.content;
+    let body = response.data.choices[0].message.content.trim();
+
+    // Sécurité : si GPT ajoute malgré tout un titre (#) ou des lignes de tableau, on les retire
+    body = body
+        .replace(/^#\s+.*$/gm, '')       // titres de niveau 1 éventuels (## et ### préservés)
+        .replace(/^\|.*\|\s*$/gm, '')    // lignes de tableau éventuelles
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+
+    // Assemblage final : header (code) + corps (GPT)
+    const header = buildReleaseNoteHeader(releaseName, releaseDate, project, environment);
+    return header + '\n' + body;
 }
 
-// ── Sauvegarde Extension Data ─────────────────────────────────────────────
-// MODIFIÉ : stocke embedding + ragMetadata (epics, features, areaPaths)
+// ── Sauvegarde Extension Data (inchangé) ──────────────────────────────────
 async function saveToExtensionData(
     orgUrl, project, releaseId, releaseName, releaseDate,
     environment, workItems, content, accessToken,
@@ -326,19 +340,18 @@ async function saveToExtensionData(
         dateGeneration  : new Date().toISOString(),
         statut          : 'Active',
         contenuMarkdown : content,
-        embedding       : [],          // rempli par generateAndAttachEmbedding
-        ragMetadata     : currentMeta, // ← NOUVEAU : epics, features, areaPaths
+        embedding       : [],
+        ragMetadata     : currentMeta,
         workItems       : workItems.map(wi => ({
             id         : wi.id,
             title      : wi.title,
             type       : wi.type,
             state      : wi.state,
-            description: wi.description, // ← NOUVEAU : pour DescriptionCoverage
-            areaPath   : wi.areaPath      // ← NOUVEAU : pour AreaPathScore
+            description: wi.description,
+            areaPath   : wi.areaPath
         }))
     };
 
-    // Génération et attachement de l'embedding
     data = await generateAndAttachEmbedding(data, formattedTickets, openAiApiKey);
 
     const extmgmtUrl = orgUrl.replace('dev.azure.com', 'extmgmt.dev.azure.com');

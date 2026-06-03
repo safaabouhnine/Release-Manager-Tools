@@ -116,7 +116,7 @@ body {
     border-radius: 20px;
 }
 .count-pill--active { background: var(--rn-active-bg); color: var(--rn-active-tx); }
-.count-pill--done   { background: var(--rn-done-bg);   color: var(--rn-done-tx);   }
+.count-pill--done   { background: #e8f4fd;   color: var(--rn-blue);   }
 
 /* ── Accueil : cartes ───────────────────────────────────────────── */
 .home-cards {
@@ -138,7 +138,7 @@ body {
     transform: translateY(-1px);
 }
 .home-card--active { border-left: 4px solid var(--rn-active-bd); }
-.home-card--done   { border-left: 4px solid var(--rn-done-bd);   }
+.home-card--done   { border-left: 4px solid var(--rn-blue); }
 .home-card-top {
     display: flex;
     align-items: center;
@@ -155,7 +155,7 @@ body {
     margin-bottom: 22px;
 }
 .home-card--active .home-card-title svg { color: var(--rn-active-bd); }
-.home-card--done   .home-card-title svg { color: var(--rn-done-bd);   }
+.home-card--done   .home-card-title svg { color: var(--rn-blue); }
 
 /* ── Boutons ────────────────────────────────────────────────────── */
 .btn {
@@ -185,10 +185,19 @@ body {
 }
 .btn-blue:hover:not(:disabled) { background: var(--rn-blue-dark); }
 .btn-green {
-    background: var(--rn-done-bd);
+    background: #107c10;                       /* vert "succès" Azure DevOps */
     color: #fff;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.12);
 }
-.btn-green:hover:not(:disabled) { background: #3d9140; }
+.btn-green:hover:not(:disabled)  { background: #0e6a0e; }
+.btn-green:active:not(:disabled) { background: #0b570b; }
+.btn-green:disabled {
+    background: var(--rn-done-bg);             /* vert clair, état "validée" */
+    color: var(--rn-done-tx);
+    opacity: 1;                                /* pas l'aspect grisé/délavé */
+    cursor: default;
+    box-shadow: none;
+}
 .arrow { font-size: 16px; }
 
 /* ── Lien retour ────────────────────────────────────────────────── */
@@ -208,7 +217,6 @@ body {
 .list-card {
     background: var(--rn-card);
     border: 1px solid var(--rn-border);
-    border-left: 3px solid var(--rn-blue);
     border-radius: var(--rn-radius);
     padding: 8px 22px;
 }
@@ -217,10 +225,16 @@ body {
     align-items: center;
     justify-content: space-between;
     gap: 16px;
-    padding: 20px 0;
+    /* keep the visual spacing but shift the row left so its left border
+       aligns with the inner edge of the card (flush with card border) */
+    margin-left: -22px;
+    padding: 20px 0 20px 22px;
     border-bottom: 1px solid var(--rn-border);
 }
 .release-row:last-child { border-bottom: none; }
+.release-row--active { border-left: 4px solid var(--rn-active-bd); }
+.release-row--done { border-left: 4px solid var(--rn-blue); }
+.release-row--done-sent { border-left: 4px solid var(--rn-done-bd); }
 .release-info { flex: 1; min-width: 0; }
 .release-name-line {
     display: flex;
@@ -301,17 +315,77 @@ body {
 .detail-head svg { color: var(--rn-text-sec); }
 
 /* ── Rendu Markdown ─────────────────────────────────────────────── */
-.markdown-body { font-size: 14px; line-height: 1.7; }
-.markdown-body h1 { font-size: 22px; color: var(--rn-blue); margin: 0 0 14px; }
-.markdown-body h2 { font-size: 17px; color: var(--rn-blue); margin: 22px 0 10px; padding-bottom: 6px; border-bottom: 1px solid var(--rn-border); }
-.markdown-body h3 { font-size: 15px; margin: 16px 0 8px; }
-.markdown-body table { width: 100%; border-collapse: collapse; margin: 14px 0; }
-.markdown-body th, .markdown-body td { border: 1px solid var(--rn-border); padding: 8px 12px; text-align: left; }
-.markdown-body th { background: #f3f2f1; font-weight: 600; }
-.markdown-body ul { padding-left: 22px; }
+/* ═══════════════════════════════════════════════════════════════
+   REMPLACE le bloc "── Rendu Markdown ──" existant dans ton style.css
+   par celui-ci (design propre + tableau de métadonnées stylé)
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Rendu Markdown (release note) ──────────────────────────────── */
+.markdown-body { font-size: 14px; line-height: 1.7; color: var(--rn-text); }
+
+.markdown-body h1 {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--rn-blue);
+    margin: 0 0 16px;
+}
+.markdown-body h2 {
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--rn-blue);
+    margin: 26px 0 4px;
+    padding-bottom: 6px;
+    border-bottom: 2px solid var(--rn-blue);   /* ligne de soulignement */
+}
+.markdown-body h3 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--rn-feat-tx);                  /* sous-titre en bleu d'accent */
+    margin: 16px 0 6px;
+}
+.markdown-body p { margin: 0 0 12px; }
+.markdown-body ul { padding-left: 22px; margin: 6px 0 14px; }
 .markdown-body li { margin-bottom: 5px; }
-.markdown-body strong { font-weight: 600; }
-.markdown-body hr { border: none; border-top: 1px solid var(--rn-border); margin: 18px 0; }
+.markdown-body strong { font-weight: 600; color: var(--rn-blue); }
+.markdown-body hr { border: none; border-top: 1px solid var(--rn-border); margin: 20px 0; }
+
+/* ── Tableaux (générique) ───────────────────────────────────────── */
+.markdown-body table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 14px 0 22px;
+    font-size: 13px;
+}
+.markdown-body th, .markdown-body td {
+    border: 1px solid var(--rn-border);
+    padding: 8px 14px;
+    text-align: left;
+    vertical-align: top;
+}
+.markdown-body thead th {
+    background: var(--rn-blue);
+    color: #fff;
+    font-weight: 600;
+}
+.markdown-body tbody tr:nth-child(odd) { background: var(--rn-feat-bg); }
+
+/* ── Tableau de MÉTADONNÉES (1er tableau de la note) ──
+   En-tête "Champ / Valeur" masqué, 1re colonne (clés) en gras. */
+.markdown-body table:first-of-type thead th {
+    background: var(--rn-feat-bg);
+    color: var(--rn-text);
+    font-weight: 600;
+    font-size: 12px;
+    text-align: left;
+}
+.markdown-body table:first-of-type tbody td {
+    background: #fff;
+    font-size: 13px;
+}
+/* annule l'alternance générique sur le tableau de métadonnées */
+.markdown-body table:first-of-type tbody tr:nth-child(odd) {
+    background: transparent;
+}
 
 /* ── Éditeur ────────────────────────────────────────────────────── */
 .editor-label {
@@ -387,6 +461,7 @@ body {
 .section-header {
     display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: 10px;
     margin-bottom: 8px;
 }
@@ -394,26 +469,30 @@ body {
     font-size: 16px;
     font-weight: 700;
     color: var(--rn-text);
+    flex: 1;
 }
 .pencil-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 28px;
-    height: 28px;
-    border: 1px solid var(--rn-border);
-    border-radius: var(--rn-radius-sm);
-    background: var(--rn-card);
+    width: 24px;
+    height: 24px;
+    border: none;
+    border-radius: 0;
+    background: transparent;
     color: var(--rn-text-sec);
     cursor: pointer;
-    transition: background 0.15s, color 0.15s, border-color 0.15s;
+    opacity: 0;
+    transition: opacity 0.15s, color 0.15s;
+}
+.detail-section-readable:hover .pencil-btn:not(:disabled) {
+    opacity: 1;
+    color: var(--rn-blue);
 }
 .pencil-btn:hover:not(:disabled) {
-    background: #f3f2f1;
     color: var(--rn-blue);
-    border-color: var(--rn-blue);
 }
-.pencil-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.pencil-btn:disabled { opacity: 0; cursor: not-allowed; }
 
 .section-body { font-size: 14px; line-height: 1.7; }
 
@@ -461,4 +540,139 @@ body {
     font-size: 12px;
     color: var(--rn-bug-tx);
     margin-bottom: 12px;
+}
+/* ═══════════════════════════════════════════════════════════════
+   DASHBOARD — styles (à ajouter à style.css)
+   ═══════════════════════════════════════════════════════════════ */
+
+.dash-empty {
+    text-align: center;
+    color: var(--rn-text-sec);
+    padding: 40px;
+    font-size: 14px;
+}
+
+/* ── KPI cards ── */
+.dash-kpis {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 22px;
+}
+.dash-kpi {
+    background: var(--rn-card);
+    border: 1px solid var(--rn-border);
+    border-radius: var(--rn-radius);
+    padding: 20px;
+    border-top: 4px solid var(--rn-blue);
+}
+.dash-kpi--active { border-top-color: var(--rn-active-bd); }
+.dash-kpi--done   { border-top-color: var(--rn-done-bd); }
+.dash-kpi--score  { border-top-color: #6b3fa0; }
+.dash-kpi-value {
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--rn-text);
+    line-height: 1;
+}
+.dash-kpi-label {
+    font-size: 13px;
+    color: var(--rn-text-sec);
+    margin-top: 8px;
+}
+.dash-kpi-sub {
+    font-size: 11px;
+    color: var(--rn-text-sec);
+    margin-top: 2px;
+    font-style: italic;
+}
+
+/* ── Panels ── */
+.dash-panel {
+    background: var(--rn-card);
+    border: 1px solid var(--rn-border);
+    border-radius: var(--rn-radius);
+    padding: 20px 22px;
+    margin-bottom: 18px;
+}
+.dash-panel-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--rn-text);
+    margin: 0 0 16px;
+}
+.dash-note {
+    font-size: 12px;
+    color: var(--rn-text-sec);
+    margin: 12px 0 0;
+    font-style: italic;
+}
+
+.dash-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+}
+
+/* ── Stats (effort) ── */
+.dash-stat-row { display: flex; gap: 40px; }
+.dash-stat-value { font-size: 28px; font-weight: 700; color: var(--rn-blue); }
+.dash-stat-label { font-size: 13px; color: var(--rn-text-sec); margin-top: 4px; }
+
+/* ── Barres horizontales ── */
+.dash-bar-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+}
+.dash-bar-label {
+    flex: 0 0 180px;
+    font-size: 13px;
+    color: var(--rn-text);
+}
+.dash-bar-track {
+    flex: 1;
+    height: 18px;
+    background: #f0f0f0;
+    border-radius: 4px;
+    overflow: hidden;
+}
+.dash-bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.4s ease;
+    min-width: 2px;
+}
+.dash-bar-value {
+    flex: 0 0 32px;
+    text-align: right;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--rn-text-sec);
+}
+
+/* ── Tableau ── */
+.dash-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+.dash-table th, .dash-table td {
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--rn-border);
+    text-align: left;
+}
+.dash-table th {
+    color: var(--rn-text-sec);
+    font-weight: 600;
+    font-size: 12px;
+}
+.dash-table tbody tr:hover { background: var(--rn-bg); }
+
+/* ── Responsive ── */
+@media (max-width: 720px) {
+    .dash-kpis { grid-template-columns: 1fr 1fr; }
+    .dash-grid { grid-template-columns: 1fr; }
+    .dash-bar-label { flex-basis: 120px; }
 }

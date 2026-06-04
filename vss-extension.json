@@ -2,12 +2,12 @@
     "manifestVersion": 1,
     "id": "smart-release-notes",
     "name": "Smart Release Notes Generator",
-    "version": "1.4.25",
+    "version": "1.5.0",
     "publisher": "ReleaseManagerTools",
     "description": "Génère automatiquement des Release Notes structurées et orientées client via LLM à partir des tickets fermés d'une release Azure DevOps.",
     "categories": ["Azure Pipelines"],
     "icons": {
-        "default": "hub-extension/icon.png"
+        "default": "hub-extension/documentation.png"
     },
     "targets": [
         {
@@ -28,7 +28,8 @@
             ],
             "properties": {
                 "name": "Release Notes",
-                "order": 110
+                "order": 110,
+                "icon": "hub-extension/documentation.png"
             }
         },
         {
@@ -49,7 +50,8 @@
             "type": "ms.vss-distributed-task.task",
             "targets": ["ms.vss-distributed-task.tasks"],
             "properties": {
-                "name": "task-extension"
+                "name": "task-extension",
+                "icon": "task-extension/documentation.png"
             }
         }
     ],
@@ -58,7 +60,7 @@
         {"path": "hub-extension/dist/bundle.js", "addressable": true},
         { "path": "hub-extension/src/app.js", "addressable": true },
         {"path": "hub-extension/style.css", "addressable": true},
-        {"path": "hub-extension/icon.png", "addressable": true},
+        {"path": "hub-extension/documentation.png", "addressable": true},
         {
             "path": "hub-extension/overview.md",
             "assetType": "Microsoft.VisualStudio.Services.Content.Details"

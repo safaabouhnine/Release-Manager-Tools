@@ -19,7 +19,8 @@ SDK.ready().then(async () => {
         home   : $('viewHome'),
         active : $('viewActive'),
         done   : $('viewDone'),
-        detail : $('viewDetail')
+        detail : $('viewDetail'),
+        dashboard: $('viewDashboard') 
     };
 
     function showLoading(show) {
@@ -478,6 +479,7 @@ SDK.ready().then(async () => {
     function bindEvents() {
         $('cardActive').addEventListener('click', () => showView('active'));
         $('cardDone').addEventListener('click',   () => showView('done'));
+        $('goDashboard').addEventListener('click', () => { showView('dashboard'); loadDashboard(); });  // ← AJOUT
         document.querySelectorAll('[data-nav]').forEach(btn => {
             btn.addEventListener('click', () => {
                 const nav = btn.dataset.nav;
@@ -492,163 +494,163 @@ SDK.ready().then(async () => {
     }
     
     // ═══════════════════════════════════════════════════════════════
-    // // DASHBOARD ANALYTIQUE — Smart Release Notes Generator
-    // // À ajouter dans app.js. Exploite les données déjà stockées.
-    // // ═══════════════════════════════════════════════════════════════
+    // DASHBOARD ANALYTIQUE — Smart Release Notes Generator
+    // À ajouter dans app.js. Exploite les données déjà stockées.
+    // ═══════════════════════════════════════════════════════════════
 
-    // // Charge toutes les notes puis rend le dashboard.
-    // async function loadDashboard() {
-    //     const container = $('dashboardContent');
-    //     if (container) container.innerHTML = '<div class="dash-empty">Chargement des analytics…</div>';
-    //     try {
-    //         // Adapte si besoin au nom exact de ta méthode de récupération de tous les docs
-    //         const notes = await dataManager.getDocuments(`release-notes-${projectName}`);
-    //         renderDashboard(Array.isArray(notes) ? notes : []);
-    //     } catch (err) {
-    //         console.error('Erreur dashboard:', err);
-    //         if (container) container.innerHTML = '<div class="dash-empty">Impossible de charger les données.</div>';
-    //     }
-    // }
+    // Charge toutes les notes puis rend le dashboard.
+    async function loadDashboard() {
+        const container = $('dashboardContent');
+        if (container) container.innerHTML = '<div class="dash-empty">Chargement des analytics…</div>';
+        try {
+            // Adapte si besoin au nom exact de ta méthode de récupération de tous les docs
+            const notes = await dataManager.getDocuments(`release-notes-${projectName}`);
+            renderDashboard(Array.isArray(notes) ? notes : []);
+        } catch (err) {
+            console.error('Erreur dashboard:', err);
+            if (container) container.innerHTML = '<div class="dash-empty">Impossible de charger les données.</div>';
+        }
+    }
 
-    // // Agrège les métriques à partir des notes.
-    // function computeDashboard(notes) {
-    //     const safe      = Array.isArray(notes) ? notes : [];
-    //     const total     = safe.length;
-    //     const active    = safe.filter(n => n.statut === 'Active').length;
-    //     const done      = safe.filter(n => n.statut === 'Done').length;
-    //     const doneNotes = safe.filter(n => n.statut === 'Done');
+    // Agrège les métriques à partir des notes.
+    function computeDashboard(notes) {
+        const safe      = Array.isArray(notes) ? notes : [];
+        const total     = safe.length;
+        const active    = safe.filter(n => n.statut === 'Active').length;
+        const done      = safe.filter(n => n.statut === 'Done').length;
+        const doneNotes = safe.filter(n => n.statut === 'Done');
 
-    //     const mean = (arr, f) => {
-    //         const vals = arr.map(f).filter(v => typeof v === 'number' && !isNaN(v));
-    //         return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
-    //     };
+        const mean = (arr, f) => {
+            const vals = arr.map(f).filter(v => typeof v === 'number' && !isNaN(v));
+            return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+        };
 
-    //     const avgFeedback = mean(doneNotes, n => n.feedbackScore);
-    //     const avgEdits    = mean(doneNotes, n => n.editCount);
-    //     const avgRegens   = mean(doneNotes, n => n.regenerationCount);
+        const avgFeedback = mean(doneNotes, n => n.feedbackScore);
+        const avgEdits    = mean(doneNotes, n => n.editCount);
+        const avgRegens   = mean(doneNotes, n => n.regenerationCount);
 
-    //     // Distribution de la qualité du 1er jet de l'IA (feedbackScore)
-    //     const quality = { high: 0, mid: 0, low: 0 };
-    //     doneNotes.forEach(n => {
-    //         const s = n.feedbackScore;
-    //         if (typeof s !== 'number') return;
-    //         if (s >= 0.8)      quality.high++;
-    //         else if (s >= 0.5) quality.mid++;
-    //         else               quality.low++;
-    //     });
+        // Distribution de la qualité du 1er jet de l'IA (feedbackScore)
+        const quality = { high: 0, mid: 0, low: 0 };
+        doneNotes.forEach(n => {
+            const s = n.feedbackScore;
+            if (typeof s !== 'number') return;
+            if (s >= 0.8)      quality.high++;
+            else if (s >= 0.5) quality.mid++;
+            else               quality.low++;
+        });
 
-    //     // Sections les plus réécrites (agrégation de sectionEdits)
-    //     const sectionTotals = {};
-    //     safe.forEach(n => {
-    //         const se = n.sectionEdits || {};
-    //         Object.keys(se).forEach(k => { sectionTotals[k] = (sectionTotals[k] || 0) + (se[k] || 0); });
-    //     });
+        // Sections les plus réécrites (agrégation de sectionEdits)
+        const sectionTotals = {};
+        safe.forEach(n => {
+            const se = n.sectionEdits || {};
+            Object.keys(se).forEach(k => { sectionTotals[k] = (sectionTotals[k] || 0) + (se[k] || 0); });
+        });
 
-    //     return { total, active, done, doneNotes, avgFeedback, avgEdits, avgRegens, quality, sectionTotals };
-    // }
+        return { total, active, done, doneNotes, avgFeedback, avgEdits, avgRegens, quality, sectionTotals };
+    }
 
-    // // Rend le dashboard dans #dashboardContent.
-    // function renderDashboard(notes) {
-    //     const m = computeDashboard(notes);
-    //     const container = $('dashboardContent');
-    //     if (!container) return;
+    // Rend le dashboard dans #dashboardContent.
+    function renderDashboard(notes) {
+        const m = computeDashboard(notes);
+        const container = $('dashboardContent');
+        if (!container) return;
 
-    //     // ── KPI cards ──
-    //     const kpis = `
-    //         <div class="dash-kpis">
-    //             <div class="dash-kpi">
-    //                 <div class="dash-kpi-value">${m.total}</div>
-    //                 <div class="dash-kpi-label">Release Notes</div>
-    //             </div>
-    //             <div class="dash-kpi dash-kpi--active">
-    //                 <div class="dash-kpi-value">${m.active}</div>
-    //                 <div class="dash-kpi-label">En cours</div>
-    //             </div>
-    //             <div class="dash-kpi dash-kpi--done">
-    //                 <div class="dash-kpi-value">${m.done}</div>
-    //                 <div class="dash-kpi-label">Publiées</div>
-    //             </div>
-    //             <div class="dash-kpi dash-kpi--score">
-    //                 <div class="dash-kpi-value">${m.avgFeedback ? m.avgFeedback.toFixed(2) : '—'}</div>
-    //                 <div class="dash-kpi-label">Score feedback moyen</div>
-    //                 <div class="dash-kpi-sub">qualité du 1er jet de l'IA</div>
-    //             </div>
-    //         </div>`;
+        // ── KPI cards ──
+        const kpis = `
+            <div class="dash-kpis">
+                <div class="dash-kpi">
+                    <div class="dash-kpi-value">${m.total}</div>
+                    <div class="dash-kpi-label">Release Notes</div>
+                </div>
+                <div class="dash-kpi dash-kpi--active">
+                    <div class="dash-kpi-value">${m.active}</div>
+                    <div class="dash-kpi-label">En cours</div>
+                </div>
+                <div class="dash-kpi dash-kpi--done">
+                    <div class="dash-kpi-value">${m.done}</div>
+                    <div class="dash-kpi-label">Publiées</div>
+                </div>
+                <div class="dash-kpi dash-kpi--score">
+                    <div class="dash-kpi-value">${m.avgFeedback ? m.avgFeedback.toFixed(2) : '—'}</div>
+                    <div class="dash-kpi-label">Score feedback moyen</div>
+                    <div class="dash-kpi-sub">qualité du 1er jet de l'IA</div>
+                </div>
+            </div>`;
 
-    //     // ── Effort de correction ──
-    //     const effort = `
-    //         <div class="dash-panel">
-    //             <h3 class="dash-panel-title">Effort de correction avant validation</h3>
-    //             <div class="dash-stat-row">
-    //                 <div class="dash-stat">
-    //                     <div class="dash-stat-value">${m.avgRegens.toFixed(2)}</div>
-    //                     <div class="dash-stat-label">Régénérations moyennes</div>
-    //                 </div>
-    //                 <div class="dash-stat">
-    //                     <div class="dash-stat-value">${m.avgEdits.toFixed(2)}</div>
-    //                     <div class="dash-stat-label">Éditions moyennes</div>
-    //                 </div>
-    //             </div>
-    //             <p class="dash-note">Plus ces valeurs sont basses, plus l'IA produit un contenu validable du premier coup.</p>
-    //         </div>`;
+        // ── Effort de correction ──
+        const effort = `
+            <div class="dash-panel">
+                <h3 class="dash-panel-title">Effort de correction avant validation</h3>
+                <div class="dash-stat-row">
+                    <div class="dash-stat">
+                        <div class="dash-stat-value">${m.avgRegens.toFixed(2)}</div>
+                        <div class="dash-stat-label">Régénérations moyennes</div>
+                    </div>
+                    <div class="dash-stat">
+                        <div class="dash-stat-value">${m.avgEdits.toFixed(2)}</div>
+                        <div class="dash-stat-label">Éditions moyennes</div>
+                    </div>
+                </div>
+                <p class="dash-note">Plus ces valeurs sont basses, plus l'IA produit un contenu validable du premier coup.</p>
+            </div>`;
 
-    //     // ── Distribution qualité (barres) ──
-    //     const totQ = m.quality.high + m.quality.mid + m.quality.low || 1;
-    //     const quality = `
-    //         <div class="dash-panel">
-    //             <h3 class="dash-panel-title">Qualité du 1er jet (notes validées)</h3>
-    //             ${dashBar('Excellent (≥ 0.80)', m.quality.high, totQ, '#107c10')}
-    //             ${dashBar('Moyen (0.50–0.79)', m.quality.mid, totQ, '#0078d4')}
-    //             ${dashBar('À améliorer (< 0.50)', m.quality.low, totQ, '#a4262c')}
-    //         </div>`;
+        // ── Distribution qualité (barres) ──
+        const totQ = m.quality.high + m.quality.mid + m.quality.low || 1;
+        const quality = `
+            <div class="dash-panel">
+                <h3 class="dash-panel-title">Qualité du 1er jet (notes validées)</h3>
+                ${dashBar('Excellent (≥ 0.80)', m.quality.high, totQ, '#107c10')}
+                ${dashBar('Moyen (0.50–0.79)', m.quality.mid, totQ, '#0078d4')}
+                ${dashBar('À améliorer (< 0.50)', m.quality.low, totQ, '#a4262c')}
+            </div>`;
 
-    //     // ── Sections les plus réécrites ──
-    //     const sectionEntries = Object.entries(m.sectionTotals).sort((a, b) => b[1] - a[1]);
-    //     const maxSec = Math.max(1, ...sectionEntries.map(e => e[1]));
-    //     const sections = `
-    //         <div class="dash-panel">
-    //             <h3 class="dash-panel-title">Sections les plus réécrites</h3>
-    //             ${sectionEntries.length
-    //                 ? sectionEntries.map(([name, c]) => dashBar(name, c, maxSec, '#1a4d8f')).join('')
-    //                 : '<p class="dash-note">Aucune édition de section enregistrée pour le moment.</p>'}
-    //             <p class="dash-note">La section la plus réécrite signale la partie du prompt à améliorer en priorité.</p>
-    //         </div>`;
+        // ── Sections les plus réécrites ──
+        const sectionEntries = Object.entries(m.sectionTotals).sort((a, b) => b[1] - a[1]);
+        const maxSec = Math.max(1, ...sectionEntries.map(e => e[1]));
+        const sections = `
+            <div class="dash-panel">
+                <h3 class="dash-panel-title">Sections les plus réécrites</h3>
+                ${sectionEntries.length
+                    ? sectionEntries.map(([name, c]) => dashBar(name, c, maxSec, '#1a4d8f')).join('')
+                    : '<p class="dash-note">Aucune édition de section enregistrée pour le moment.</p>'}
+                <p class="dash-note">La section la plus réécrite signale la partie du prompt à améliorer en priorité.</p>
+            </div>`;
 
-    //     // ── Détail par release ──
-    //     const rows = m.doneNotes
-    //         .slice()
-    //         .sort((a, b) => new Date(a.dateGeneration || 0) - new Date(b.dateGeneration || 0))
-    //         .map(n => `
-    //             <tr>
-    //                 <td>${n.releaseName || '—'}</td>
-    //                 <td>${n.releaseDate || '—'}</td>
-    //                 <td>${n.editCount || 0}</td>
-    //                 <td>${n.regenerationCount || 0}</td>
-    //                 <td>${typeof n.feedbackScore === 'number' ? n.feedbackScore.toFixed(2) : '—'}</td>
-    //             </tr>`).join('');
-    //     const table = `
-    //         <div class="dash-panel">
-    //             <h3 class="dash-panel-title">Détail par release validée</h3>
-    //             <table class="dash-table">
-    //                 <thead><tr><th>Release</th><th>Date</th><th>Éditions</th><th>Régén.</th><th>Feedback</th></tr></thead>
-    //                 <tbody>${rows || '<tr><td colspan="5">Aucune release validée.</td></tr>'}</tbody>
-    //             </table>
-    //             <p class="dash-note">Une tendance décroissante des corrections au fil des releases valide l'efficacité de la boucle de feedback.</p>
-    //         </div>`;
+        // ── Détail par release ──
+        const rows = m.doneNotes
+            .slice()
+            .sort((a, b) => new Date(a.dateGeneration || 0) - new Date(b.dateGeneration || 0))
+            .map(n => `
+                <tr>
+                    <td>${n.releaseName || '—'}</td>
+                    <td>${n.releaseDate || '—'}</td>
+                    <td>${n.editCount || 0}</td>
+                    <td>${n.regenerationCount || 0}</td>
+                    <td>${typeof n.feedbackScore === 'number' ? n.feedbackScore.toFixed(2) : '—'}</td>
+                </tr>`).join('');
+        const table = `
+            <div class="dash-panel">
+                <h3 class="dash-panel-title">Détail par release validée</h3>
+                <table class="dash-table">
+                    <thead><tr><th>Release</th><th>Date</th><th>Éditions</th><th>Régén.</th><th>Feedback</th></tr></thead>
+                    <tbody>${rows || '<tr><td colspan="5">Aucune release validée.</td></tr>'}</tbody>
+                </table>
+                <p class="dash-note">Une tendance décroissante des corrections au fil des releases valide l'efficacité de la boucle de feedback.</p>
+            </div>`;
 
-    //     container.innerHTML = kpis + effort + `<div class="dash-grid">${quality}${sections}</div>` + table;
-    // }
+        container.innerHTML = kpis + effort + `<div class="dash-grid">${quality}${sections}</div>` + table;
+    }
 
-    // // Petit helper : une barre horizontale
-    // function dashBar(label, value, max, color) {
-    //     const pct = max ? Math.round((value / max) * 100) : 0;
-    //     return `
-    //         <div class="dash-bar-row">
-    //             <div class="dash-bar-label">${label}</div>
-    //             <div class="dash-bar-track">
-    //                 <div class="dash-bar-fill" style="width:${pct}%; background:${color};"></div>
-    //             </div>
-    //             <div class="dash-bar-value">${value}</div>
-    //         </div>`;
-    // }
+    // Petit helper : une barre horizontale
+    function dashBar(label, value, max, color) {
+        const pct = max ? Math.round((value / max) * 100) : 0;
+        return `
+            <div class="dash-bar-row">
+                <div class="dash-bar-label">${label}</div>
+                <div class="dash-bar-track">
+                    <div class="dash-bar-fill" style="width:${pct}%; background:${color};"></div>
+                </div>
+                <div class="dash-bar-value">${value}</div>
+            </div>`;
+    }
 });

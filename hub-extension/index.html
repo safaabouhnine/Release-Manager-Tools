@@ -49,14 +49,16 @@
                     <button class="btn btn-outline btn-block">Accéder <span class="arrow">→</span></button>
                 </div>
             </div>
+
             <div class="info-bar" id="lastGenInfo">
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
                 <span id="lastGenText">Aucune génération récente</span>
             </div>
-            <!--  ═══════════════════════════════════════════════════════════════
-                DASHBOARD — Intégration dans le Hub
-                ═══════════════════════════════════════════════════════════════ -->
-            
+
+            <!-- Entrée vers le dashboard -->
+            <button class="btn btn-outline btn-block" id="goDashboard" style="margin-top:16px;">
+                Tableau de bord analytique
+            </button>
         </section>
 
         <!-- ════════ VUE 2 : LISTE ACTIVE ════════ -->
@@ -107,14 +109,20 @@
                         <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
                         Régénérer via IA
                     </button>
+                    <!-- CORRIGÉ : plus de back-link imbriqué (qui causait la navigation brutale) -->
                     <button class="btn btn-green" id="markDoneBtn">
                         <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
-                        <span class="back-link" data-nav="doneList">
-                            Marquer comme Done
-                        </span>
+                        Marquer comme Done
                     </button>
                 </div>
             </div>
+        </section>
+
+        <!-- ════════ VUE 5 : DASHBOARD ════════ -->
+        <section id="viewDashboard" class="view hidden">
+            <button class="back-link" data-nav="home">← Retour</button>
+            <h1 class="view-title">Tableau de bord</h1>
+            <div id="dashboardContent"></div>
         </section>
 
         <!-- Modale de confirmation d'envoi (avec champ email) -->

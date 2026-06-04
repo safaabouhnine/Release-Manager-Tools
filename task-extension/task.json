@@ -7,8 +7,8 @@
     "author": "ReleaseManagerTools",
     "version": {
         "Major": 1,
-        "Minor": 4,
-        "Patch": 25
+        "Minor": 5,
+        "Patch": 0
     },
     "instanceNameFormat": "Generate Smart Release Notes",
     "inputs": [
